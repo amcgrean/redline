@@ -5,21 +5,22 @@ and **needs Aaron in Revu / Acrobat / Chrome / Edge** (`docs/interop-checklist.m
 
 ## Aaron's viewer results (2026-09-08)
 
-| # | Check | Revu 21 | Acrobat | Chrome | Edge |
-|---|---|---|---|---|---|
-| 1 | Opens without repair prompt | pass (all files) | n/a (no Acrobat Pro) | pass (spike) | pass (spike) |
-| 2 | Markups visible at right position/size | pass | n/a | pass (spike) | pass (spike) |
-| 3 | Endings, dashes, fill opacity render | pass (arrowheads, slashes, fill) | n/a | not yet checked on browser files | not yet checked |
-| 4 | Captions show Redline's value | pass (`80'-0"`, `600 sf`, `94'-3 3/8"`, `30'-6"`) | n/a | not yet checked | not yet checked |
-| 5 | Markups List: Subject, Author, Date, Length/Area | pass | — | — | — |
-| 6 | Measurements panel scale matches calibration | pass | — | — | — |
-| 7 | Acrobat "use scale from document" | — | n/a (needs Acrobat Pro) | — | — |
-| 8 | Editable in Revu (vertex moves, value updates) | pass (spike and others) | — | — | — |
-| 12 | Print preview shows markups | not yet checked | n/a | not yet checked | not yet checked |
-| R5 | Page scale unchanged unless Redline changed it | pass (D-1, D-2 CAD sets) | | | |
-| R7 | Edit in Revu → reopen in Redline → nothing lost | **pass** — see R7 result below | | | |
+| #   | Check                                            | Revu 21                                           | Acrobat                 | Chrome                           | Edge            |
+| --- | ------------------------------------------------ | ------------------------------------------------- | ----------------------- | -------------------------------- | --------------- |
+| 1   | Opens without repair prompt                      | pass (all files)                                  | n/a (no Acrobat Pro)    | pass (spike)                     | pass (spike)    |
+| 2   | Markups visible at right position/size           | pass                                              | n/a                     | pass (spike)                     | pass (spike)    |
+| 3   | Endings, dashes, fill opacity render             | pass (arrowheads, slashes, fill)                  | n/a                     | not yet checked on browser files | not yet checked |
+| 4   | Captions show Redline's value                    | pass (`80'-0"`, `600 sf`, `94'-3 3/8"`, `30'-6"`) | n/a                     | not yet checked                  | not yet checked |
+| 5   | Markups List: Subject, Author, Date, Length/Area | pass                                              | —                       | —                                | —               |
+| 6   | Measurements panel scale matches calibration     | pass                                              | —                       | —                                | —               |
+| 7   | Acrobat "use scale from document"                | —                                                 | n/a (needs Acrobat Pro) | —                                | —               |
+| 8   | Editable in Revu (vertex moves, value updates)   | pass (spike and others)                           | —                       | —                                | —               |
+| 12  | Print preview shows markups                      | not yet checked                                   | n/a                     | not yet checked                  | not yet checked |
+| R5  | Page scale unchanged unless Redline changed it   | pass (D-1, D-2 CAD sets)                          |                         |                                  |                 |
+| R7  | Edit in Revu → reopen in Redline → nothing lost  | **pass** — see R7 result below                    |                         |                                  |                 |
 
 Notes:
+
 - `corpus/Takeoff …moved.pdf`: the 10 pt move (1/7 in on a 36 in sheet) is invisible by eye —
   expected. `corpus/Takeoff …moved-1in.pdf` moves the same "31-Gable SF" (47 sf) polygon on
   page 1 (Front Elevation) by 1 in right and 1 in up for a visible check.
@@ -38,12 +39,12 @@ Notes:
 
 ## Go / no-go status
 
-| #   | Claim                                                       | Status                                                                                                                                                                                            |
-| --- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Browser core loop (drop → calibrate → length → area → save) | **Done in the demo** on a CAD export and on the Revu takeoff; outputs in `fixtures/out/browser/`                                                                                                  |
-| 2   | Measurements are real to Revu/Acrobat/Chrome/Edge           | Dictionaries are shape-identical to Revu's own (decoded, not guessed); pdf.js renders them. **Viewer checks pending (rows 1–8, 12)**                                                              |
+| #   | Claim                                                       | Status                                                                                                                                                                                                                                                                                                                                                              |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Browser core loop (drop → calibrate → length → area → save) | **Done in the demo** on a CAD export and on the Revu takeoff; outputs in `fixtures/out/browser/`                                                                                                                                                                                                                                                                    |
+| 2   | Measurements are real to Revu/Acrobat/Chrome/Edge           | Dictionaries are shape-identical to Revu's own (decoded, not guessed); pdf.js renders them. **Viewer checks pending (rows 1–8, 12)**                                                                                                                                                                                                                                |
 | 3   | Lossless round-trip                                         | **Automated pass** on all 6 fixtures + a synthetic Bluebeam-keyed file: only owned keys change, `/RC`, `/IRT`, `/OC`, `/BSI*`, pre-existing `/VP` byte-identical. **PASS**: Revu reopens all moved files (R5), keeps Redline's move on a full rewrite, and Redline round-trips Revu's rewrite (R7). R1–R4, R6 still need a fixture with columns/spaces/groups/stamp |
-| 4   | Performance on real sets                                    | Not measured — no 100-sheet set in `fixtures/` (largest is 7 MB, D-1 with 60+ viewports). Tiled rendering and viewport-sized Konva stages are in place; **needs a 100-sheet fixture**             |
+| 4   | Performance on real sets                                    | **Partial**: after Phase 1 (tiled viewer, fit modes, thumbnails) D-1 Palazzo (68 pages, 7 MB, 19,448 CAD viewports) shows its first tile **1.6 s** after navigation in the dev build, under the 2 s budget. Pan/zoom frame rate and a true 100-sheet set are still unmeasured — **needs a 100-sheet fixture**                                                       |
 
 ## What the tests verified (`pnpm test` — 49 tests, all green; `pnpm test:corpus` — 7/7)
 
