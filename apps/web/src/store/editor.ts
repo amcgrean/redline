@@ -29,8 +29,10 @@ import {
   type Session,
 } from './session';
 import { addAreaCommand, addLengthCommand, calibrateCommand, moveCommand } from './commands';
+import type { FindHit } from '../text/textIndex';
+import { printDocument } from '../print';
 
-export type Tool = 'select' | 'calibrate' | 'length' | 'area';
+export type Tool = 'select' | 'text' | 'calibrate' | 'length' | 'area';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -55,6 +57,7 @@ export interface EditorUiState {
   /** View-only rotation in degrees (0/90/180/270); never written to the file. */
   viewRotation: number;
   showThumbnails: boolean;
+  find: { open: boolean; query: string; hits: FindHit[]; index: number };
   /** 0-based page the viewer considers current (tracks scrolling). */
   currentPage: number;
   /** Set by `goToPage`; the viewer scrolls there and clears it. */
@@ -85,6 +88,7 @@ export const useEditorStore = create<EditorUiState>()(
     layoutMode: 'continuous',
     viewRotation: 0,
     showThumbnails: false,
+    find: { open: false, query: '', hits: [], index: 0 },
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -144,6 +148,7 @@ export const actions = {
     addSession(session);
     set((s) => {
       syncActive(s, session);
+      s.find = { open: false, query: '', hits: [], index: 0 };
       s.selectedId = undefined;
       s.tool = 'select';
       s.currentPage = 0;
@@ -163,6 +168,7 @@ export const actions = {
     if (!session) return;
     set((s) => {
       syncActive(s, session);
+      s.find = { open: false, query: '', hits: [], index: 0 };
       s.selectedId = undefined;
       s.currentPage = 0;
       s.version += 1;
@@ -178,6 +184,7 @@ export const actions = {
     const next = removeSession(id);
     set((s) => {
       syncActive(s, next);
+      s.find = { open: false, query: '', hits: [], index: 0 };
       s.selectedId = undefined;
       s.currentPage = 0;
       s.version += 1;
@@ -239,6 +246,63 @@ export const actions = {
   rotateView(delta: 90 | -90): void {
     set((s) => {
       s.viewRotation = (((s.viewRotation + delta) % 360) + 360) % 360;
+    });
+  },
+
+  openFind(): void {
+    set((s) => {
+      s.find.open = true;
+    });
+  },
+
+  closeFind(): void {
+    set((s) => {
+      s.find = { open: false, query: '', hits: [], index: 0 };
+    });
+  },
+
+  /** New results replace the old; the first hit at or after the current page is selected. */
+  setFindResults(query: string, hits: FindHit[]): void {
+    const { currentPage } = useEditorStore.getState();
+    let index = hits.findIndex((h) => h.page >= currentPage);
+    if (index < 0) index = 0;
+    set((s) => {
+      s.find.query = query;
+      s.find.hits = hits;
+      s.find.index = index;
+    });
+    const hit = hits[index];
+    if (hit && hit.page !== currentPage) actions.goToPage(hit.page);
+  },
+
+  findNext(): void {
+    actions.stepFind(1);
+  },
+
+  findPrevious(): void {
+    actions.stepFind(-1);
+  },
+
+  stepFind(delta: 1 | -1): void {
+    const { find } = useEditorStore.getState();
+    if (find.hits.length === 0) return;
+    const index = (find.index + delta + find.hits.length) % find.hits.length;
+    set((s) => {
+      s.find.index = index;
+    });
+    const hit = find.hits[index];
+    if (hit) actions.goToPage(hit.page);
+  },
+
+  async print(): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    set((s) => {
+      s.status = 'Preparing print…';
+    });
+    await printDocument(session.doc);
+    set((s) => {
+      s.status = 'Sent to print';
     });
   },
 

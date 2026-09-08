@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent, type ChangeEv
 import { Viewer } from './Viewer';
 import { Thumbnails } from './Thumbnails';
 import { Recents } from './Recents';
+import { FindBar } from './FindBar';
 import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
 import {
   handleFromDrop,
@@ -20,6 +21,7 @@ import { formatFeetInches, worldUnitsPerPoint } from '@redline/pdf-core';
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: 'select', label: 'Select (V)', hint: 'Click a markup to select it, then drag to move.' },
+  { id: 'text', label: 'Text', hint: 'Drag across page text to select it; Ctrl+C copies.' },
   {
     id: 'calibrate',
     label: 'Calibrate (X)',
@@ -68,6 +70,16 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (ctrl && key === 's') {
     event.preventDefault();
     if (hasDoc && dirty) void actions.save(saveBytes);
+    return;
+  }
+  if (ctrl && key === 'f') {
+    event.preventDefault();
+    if (hasDoc) actions.openFind();
+    return;
+  }
+  if (ctrl && key === 'p') {
+    event.preventDefault();
+    if (hasDoc) void actions.print();
     return;
   }
   if (ctrl && key === 'z' && !event.shiftKey) {
@@ -403,6 +415,25 @@ export function App() {
         <span className="sep" />
         <button
           type="button"
+          disabled={!hasDoc}
+          onClick={actions.openFind}
+          title="Ctrl+F"
+          aria-label="Find"
+        >
+          Find
+        </button>
+        <button
+          type="button"
+          disabled={!hasDoc}
+          onClick={() => void actions.print()}
+          title="Ctrl+P"
+          aria-label="Print"
+        >
+          Print
+        </button>
+        <span className="sep" />
+        <button
+          type="button"
           disabled={!hasDoc || !dirty}
           onClick={() => void actions.save(saveBytes)}
           title="Ctrl+S"
@@ -445,6 +476,7 @@ export function App() {
           ))}
         </div>
       )}
+      <FindBar />
       <div className="hint">
         {hasDoc
           ? TOOLS.find((t) => t.id === tool)?.hint

@@ -102,7 +102,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const onClick = (event: KonvaEventObject<MouseEvent>) => {
     const p = pointerPdf(event);
     if (!p) return;
-    if (tool === 'select') {
+    if (tool === 'select' || tool === 'text') {
       if (event.target === event.target.getStage()) actions.select(undefined);
       return;
     }
@@ -148,7 +148,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   const onMouseMove = (event: KonvaEventObject<MouseEvent>) => {
-    if (tool === 'select') return;
+    if (tool === 'select' || tool === 'text') return;
     setHover(pointerPdf(event));
   };
 
@@ -179,7 +179,9 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
           top: visible.top,
           width: Math.max(0, visible.width),
           height: Math.max(0, visible.height),
-          cursor: tool === 'select' ? 'default' : 'crosshair',
+          cursor: tool === 'select' ? 'default' : tool === 'text' ? 'text' : 'crosshair',
+          // In Text mode the pdf.js text layer underneath owns selection.
+          pointerEvents: tool === 'text' ? 'none' : 'auto',
         }}
       >
         <Stage

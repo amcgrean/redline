@@ -12,6 +12,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { PdfjsDocument, PdfjsPage, PageViewport } from './pdfjs';
 import { renderTile, tilesFor, type Tile } from './pdfjs';
 import { MarkupLayer } from './MarkupLayer';
+import { TextLayer } from './TextLayer';
+import { FindHighlights } from './FindHighlights';
 import { actions, useEditorStore } from './store';
 
 const PAGE_GAP = 16;
@@ -76,6 +78,7 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
   const rotation = useEditorStore((s) => s.viewRotation);
   const currentPage = useEditorStore((s) => s.currentPage);
   const scrollTo = useEditorStore((s) => s.scrollTo);
+  const textMode = useEditorStore((s) => s.tool === 'text');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PdfjsPage[]>([]);
   const [scroll, setScroll] = useState<ScrollBox>({ left: 0, top: 0, width: 0, height: 0 });
@@ -245,6 +248,8 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
                   }}
                 />
               )}
+              {region && <FindHighlights pageIndex={item.index} viewport={item.viewport} />}
+              {region && textMode && <TextLayer page={item.page} viewport={item.viewport} />}
               {region && (
                 <MarkupLayer
                   pageIndex={item.index}

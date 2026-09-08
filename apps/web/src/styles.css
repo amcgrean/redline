@@ -293,3 +293,78 @@ body {
   font-size: 11px;
   color: #444;
 }
+
+/* Text layer (pdf.js), find bar and search highlights (Phase 1 PR 4). */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+  z-index: 1;
+  forced-color-adjust: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.textLayer ::selection {
+  background: rgba(2, 136, 209, 0.35);
+}
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}
+.overlay {
+  z-index: 2;
+}
+.find-highlights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.find-hit {
+  position: absolute;
+  background: rgba(255, 213, 0, 0.45);
+  outline: 1px solid rgba(200, 150, 0, 0.6);
+}
+.find-hit.current {
+  background: rgba(255, 120, 0, 0.55);
+  outline-color: #d84315;
+}
+.findbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fff8e1;
+  border-bottom: 1px solid #e0c060;
+}
+.findbar input {
+  width: 260px;
+  font: inherit;
+  padding: 3px 6px;
+}
+.findbar button {
+  font: inherit;
+  padding: 2px 8px;
+  border: 1px solid #999;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.find-count {
+  color: #555;
+  min-width: 80px;
+}
