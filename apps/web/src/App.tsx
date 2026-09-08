@@ -1,11 +1,12 @@
 /**
- * The POC shell: one plain page with a drop zone, the viewer, and three tool buttons.
- * Panels, tool chest and menus arrive in Phase 1 (docs/POC-KICKOFF.md).
+ * The shell: one plain page with a drop zone, the viewer, and a toolbar. Panels, tool
+ * chest and menus arrive later in Phase 1/2; this pass adds undo/redo, zoom presets,
+ * page navigation and the Appendix B shortcuts.
  */
 
 import { useCallback, useEffect, useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { Viewer } from './Viewer';
-import { actions, useEditor, type Tool } from './store';
+import { actions, useEditor, type Tool, type ZoomMode } from './store';
 import { pickFileHandle, saveBytes, supportsSaveInPlace, type FileHandleLike } from './fileTarget';
 import { formatFeetInches, worldUnitsPerPoint } from '@redline/pdf-core';
 
@@ -29,28 +30,101 @@ async function openFile(file: File, handle?: FileHandleLike): Promise<void> {
   await actions.open(bytes, handle ? { name: file.name, handle } : { name: file.name });
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
+/** PLAN Appendix B, the subset the shell supports today. */
+function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): void {
+  if (isTypingTarget(event.target)) return;
+  const key = event.key.toLowerCase();
+  const ctrl = event.ctrlKey || event.metaKey;
+
+  if (ctrl && key === 's') {
+    event.preventDefault();
+    if (hasDoc && dirty) void actions.save(saveBytes);
+    return;
+  }
+  if (ctrl && key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    actions.undo();
+    return;
+  }
+  if (ctrl && (key === 'y' || (key === 'z' && event.shiftKey))) {
+    event.preventDefault();
+    actions.redo();
+    return;
+  }
+  if (!hasDoc) return;
+
+  if (ctrl && (key === '=' || key === '+')) {
+    event.preventDefault();
+    actions.zoomIn();
+    return;
+  }
+  if (ctrl && key === '-') {
+    event.preventDefault();
+    actions.zoomOut();
+    return;
+  }
+  if (ctrl && key === '0') {
+    event.preventDefault();
+    actions.setZoomMode('custom');
+    return;
+  }
+  if (event.shiftKey && !ctrl) {
+    // Shift+digit reports "!" / "@" as key; use the physical key instead.
+    if (event.code === 'Digit1') return actions.setZoomMode('fit-page');
+    if (event.code === 'Digit2') return actions.setZoomMode('fit-width');
+    if (event.code === 'Digit0') return actions.setZoomMode('custom');
+  }
+  if (event.key === 'PageDown') {
+    event.preventDefault();
+    return actions.nextPage();
+  }
+  if (event.key === 'PageUp') {
+    event.preventDefault();
+    return actions.previousPage();
+  }
+  if (event.key === 'Home' && ctrl) return actions.goToPage(0);
+  if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
+
+  if (ctrl || event.altKey) return;
+  const map: Record<string, Tool> = { v: 'select', x: 'calibrate', m: 'length', a: 'area' };
+  const next = map[key];
+  if (next) actions.setTool(next);
+}
+
 export function App() {
   const state = useEditor();
   const [over, setOver] = useState(false);
-  const { doc, pdfjs, tool, dirty, status, zoom, selectedId } = state;
+  const {
+    doc,
+    pdfjs,
+    tool,
+    dirty,
+    status,
+    zoom,
+    zoomMode,
+    selectedId,
+    hasDoc,
+    pageCount,
+    currentPage,
+    canUndo,
+    canRedo,
+    undoLabel,
+    redoLabel,
+  } = state;
 
-  // Single-key tools, as in PLAN Appendix B.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
-        return;
-      if (event.ctrlKey && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        if (doc) void actions.save(saveBytes);
-        return;
-      }
-      const map: Record<string, Tool> = { v: 'select', x: 'calibrate', m: 'length', a: 'area' };
-      const next = map[event.key.toLowerCase()];
-      if (next && !event.ctrlKey && !event.metaKey) actions.setTool(next);
-    };
+    const onKey = (event: KeyboardEvent) => handleShortcut(event, hasDoc, dirty);
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc]);
+  }, [hasDoc, dirty]);
 
   // Dev convenience: `?fixture=<name>` opens a file from `fixtures/` (served by vite.config.ts).
   // The ref guards against StrictMode's double effect run, which would open the file twice.
@@ -98,12 +172,18 @@ export function App() {
   }, []);
 
   const selected = doc?.markups.find((m) => m.id === selectedId);
-  const firstScale = doc ? [...doc.pageScales.entries()].sort((a, b) => a[0] - b[0])[0] : undefined;
+  const pageScale = doc?.pageScales.get(currentPage);
+
+  const zoomSelectValue = zoomMode === 'custom' ? 'custom' : zoomMode;
+  const onZoomSelect = (value: string) => {
+    if (value === '100') actions.setZoomMode('custom');
+    else actions.setZoomMode(value as ZoomMode);
+  };
 
   return (
     <>
       <div className="toolbar">
-        <strong>Redline POC</strong>
+        <strong>Redline</strong>
         <label>
           <input
             type="file"
@@ -111,11 +191,7 @@ export function App() {
             onChange={onPick}
             style={{ display: 'none' }}
           />
-          <span
-            role="button"
-            className="linklike"
-            style={{ cursor: 'pointer', textDecoration: 'underline' }}
-          >
+          <span role="button" className="linklike">
             Open…
           </span>
         </label>
@@ -128,30 +204,98 @@ export function App() {
             Open (save in place)…
           </button>
         )}
+        <span className="sep" />
         {TOOLS.map((t) => (
           <button
             key={t.id}
             type="button"
             className={tool === t.id ? 'active' : ''}
-            disabled={!doc}
+            disabled={!hasDoc}
             onClick={() => actions.setTool(t.id)}
             title={t.hint}
           >
             {t.label}
           </button>
         ))}
-        <button type="button" disabled={!doc} onClick={() => actions.setZoom(zoom / 1.25)}>
-          −
-        </button>
-        <span className="status" style={{ minWidth: 48, textAlign: 'center' }}>
-          {Math.round(zoom * 100)}%
-        </span>
-        <button type="button" disabled={!doc} onClick={() => actions.setZoom(zoom * 1.25)}>
-          +
+        <span className="sep" />
+        <button
+          type="button"
+          disabled={!canUndo}
+          onClick={actions.undo}
+          title={undoLabel ? `Undo ${undoLabel} (Ctrl+Z)` : 'Undo (Ctrl+Z)'}
+          aria-label="Undo"
+        >
+          ↶ Undo
         </button>
         <button
           type="button"
-          disabled={!doc || !dirty}
+          disabled={!canRedo}
+          onClick={actions.redo}
+          title={redoLabel ? `Redo ${redoLabel} (Ctrl+Y)` : 'Redo (Ctrl+Y)'}
+          aria-label="Redo"
+        >
+          ↷ Redo
+        </button>
+        <span className="sep" />
+        <button type="button" disabled={!hasDoc} onClick={actions.zoomOut} aria-label="Zoom out">
+          −
+        </button>
+        <span className="status" style={{ minWidth: 48, textAlign: 'center' }} aria-label="Zoom">
+          {Math.round(zoom * 100)}%
+        </span>
+        <button type="button" disabled={!hasDoc} onClick={actions.zoomIn} aria-label="Zoom in">
+          +
+        </button>
+        <select
+          value={zoomSelectValue}
+          disabled={!hasDoc}
+          onChange={(e) => onZoomSelect(e.target.value)}
+          aria-label="Zoom preset"
+          title="Fit page: Shift+1 · Fit width: Shift+2 · 100%: Ctrl+0"
+        >
+          <option value="fit-page">Fit page</option>
+          <option value="fit-width">Fit width</option>
+          <option value="custom">Custom</option>
+          <option value="100">100%</option>
+        </select>
+        <span className="sep" />
+        <button
+          type="button"
+          disabled={!hasDoc || currentPage === 0}
+          onClick={actions.previousPage}
+          aria-label="Previous page"
+          title="PageUp"
+        >
+          ‹
+        </button>
+        <label className="page-indicator">
+          <input
+            type="number"
+            min={1}
+            max={Math.max(1, pageCount)}
+            disabled={!hasDoc}
+            value={hasDoc ? currentPage + 1 : ''}
+            aria-label="Page"
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 1) actions.goToPage(n - 1);
+            }}
+          />{' '}
+          of {pageCount || '–'}
+        </label>
+        <button
+          type="button"
+          disabled={!hasDoc || currentPage >= pageCount - 1}
+          onClick={actions.nextPage}
+          aria-label="Next page"
+          title="PageDown"
+        >
+          ›
+        </button>
+        <span className="sep" />
+        <button
+          type="button"
+          disabled={!hasDoc || !dirty}
           onClick={() => void actions.save(saveBytes)}
           title="Ctrl+S"
         >
@@ -161,15 +305,18 @@ export function App() {
         <span className="status">{status}</span>
       </div>
       <div className="hint">
-        {doc
+        {hasDoc
           ? TOOLS.find((t) => t.id === tool)?.hint
           : 'Drop a PDF (try a Revu-marked set) or use Open.'}
-        {firstScale && (
+        {hasDoc && (
           <>
             {' '}
-            · page {firstScale[0] + 1} scale: 1 in = {firstScale[1].scale.worldLength.toFixed(3)} ft
-            ({firstScale[1].fromDocument ? 'from document' : 'calibrated'}) ·{' '}
-            {formatFeetInches(worldUnitsPerPoint(firstScale[1].scale) * 72)} per inch
+            · page {currentPage + 1} scale:{' '}
+            {pageScale
+              ? `1 in = ${pageScale.scale.worldLength.toFixed(3)} ft (${
+                  pageScale.fromDocument ? 'from document' : 'calibrated'
+                }) · ${formatFeetInches(worldUnitsPerPoint(pageScale.scale) * 72)} per inch`
+              : 'not set'}
           </>
         )}
         {selected && (

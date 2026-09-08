@@ -2,13 +2,16 @@
  * Scrollable, zoomable page stack. Each page is rendered by pdf.js in tiles (no canvas
  * over 16 Mpx, PLAN §3.5) and overlaid with a Konva stage that covers only the visible
  * part of the page, so the markup canvas never grows with zoom either.
+ *
+ * This pass adds fit-page / fit-width zoom modes, current-page tracking and
+ * programmatic page navigation.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PdfjsDocument, PdfjsPage, PageViewport } from './pdfjs';
 import { renderTile, tilesFor, type Tile } from './pdfjs';
 import { MarkupLayer } from './MarkupLayer';
-import { actions, useEditor } from './store';
+import { actions, useEditorStore } from './store';
 
 const PAGE_GAP = 16;
 /** Extra CSS pixels rendered around the visible area so scrolling does not flash. */
@@ -40,8 +43,30 @@ function intersect(a: ScrollBox, b: ScrollBox): ScrollBox | undefined {
   return { left, top, width: right - left, height: bottom - top };
 }
 
+/** The zoom that fits the widest page (fit-width) or the whole page (fit-page). */
+function fittedZoom(
+  pages: PdfjsPage[],
+  mode: 'fit-page' | 'fit-width',
+  clientWidth: number,
+  clientHeight: number,
+): number | undefined {
+  if (pages.length === 0 || clientWidth <= 0 || clientHeight <= 0) return undefined;
+  let widest = 0;
+  let tallest = 0;
+  for (const page of pages) {
+    const { width, height } = page.getViewport({ scale: 1 });
+    widest = Math.max(widest, width);
+    tallest = Math.max(tallest, height);
+  }
+  const byWidth = (clientWidth - PAGE_GAP * 2) / widest;
+  if (mode === 'fit-width') return byWidth;
+  return Math.min(byWidth, (clientHeight - PAGE_GAP * 2) / tallest);
+}
+
 export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
-  const { zoom } = useEditor();
+  const zoom = useEditorStore((s) => s.zoom);
+  const zoomMode = useEditorStore((s) => s.zoomMode);
+  const scrollTo = useEditorStore((s) => s.scrollTo);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PdfjsPage[]>([]);
   const [scroll, setScroll] = useState<ScrollBox>({ left: 0, top: 0, width: 0, height: 0 });
@@ -58,6 +83,15 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
       cancelled = true;
     };
   }, [pdfjs]);
+
+  // Fit modes resolve against the scroll box; re-resolve when it or the pages change.
+  useLayoutEffect(() => {
+    if (zoomMode === 'custom') return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const fitted = fittedZoom(pages, zoomMode, el.clientWidth, el.clientHeight);
+    if (fitted !== undefined) actions.applyFittedZoom(fitted);
+  }, [pages, zoomMode, scroll.width, scroll.height]);
 
   // Lay pages out in a vertical stack, centred on the widest page.
   const layout = useMemo(() => {
@@ -112,6 +146,27 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     };
   }, [updateScroll]);
 
+  // Current page: the one containing the point a third of the way down the viewport.
+  useEffect(() => {
+    if (layout.items.length === 0) return;
+    const probe = scroll.top + scroll.height / 3;
+    let current = layout.items[0]!.index;
+    for (const item of layout.items) {
+      if (item.top <= probe) current = item.index;
+      else break;
+    }
+    actions.setCurrentPage(current);
+  }, [layout, scroll.top, scroll.height]);
+
+  // Programmatic navigation (page input, PageUp/Down, Home/End).
+  useEffect(() => {
+    if (!scrollTo) return;
+    const el = scrollRef.current;
+    const item = layout.items[scrollTo.page];
+    if (el && item) el.scrollTo({ top: Math.max(0, item.top - PAGE_GAP), behavior: 'auto' });
+    actions.clearScrollRequest();
+  }, [scrollTo, layout]);
+
   // Ctrl+wheel zooms around the cursor.
   useEffect(() => {
     const el = scrollRef.current;
@@ -144,7 +199,7 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
   );
 
   return (
-    <div className="viewer" ref={scrollRef}>
+    <div className="viewer" ref={scrollRef} data-testid="viewer">
       <div className="viewer-inner" style={{ width: layout.width, height: layout.height }}>
         {layout.items.map((item) => {
           const pageBox = {
@@ -158,6 +213,7 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
             <div
               key={item.index}
               className="page"
+              data-page={item.index + 1}
               style={{ left: item.left, top: item.top, width: item.width, height: item.height }}
             >
               {region && (

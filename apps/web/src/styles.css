@@ -131,3 +131,24 @@ body {
   border-bottom: 1px solid #e0c97f;
   color: #5d4a00;
 }
+
+/* Toolbar additions: separators and the page indicator (Phase 1). */
+.toolbar .sep {
+  width: 1px;
+  height: 20px;
+  background: #ccc;
+  margin: 0 4px;
+}
+.toolbar .page-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.toolbar .page-indicator input {
+  width: 3.5em;
+  text-align: right;
+}
+.toolbar select {
+  height: 26px;
+}
