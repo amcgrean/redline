@@ -61,7 +61,12 @@ export function CalibrateDialog({ pointsDistance, current, onApply, onCancel }: 
 
   return (
     <div className="dialog" onClick={onCancel}>
-      <form onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+      <form
+        role="dialog"
+        aria-label="Calibrate page scale"
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+      >
         <strong>Calibrate page scale</strong>
         <div>
           Clicked distance: {pointsDistance.toFixed(2)} pt

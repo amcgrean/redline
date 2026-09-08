@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PDFDict, PDFDict } from '@cantoo/pdf-lib';
+import type { PDFDict } from '@cantoo/pdf-lib';
 import { PDFArray, PDFName, PDFNumber, PDFString } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';

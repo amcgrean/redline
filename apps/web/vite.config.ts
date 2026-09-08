@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -51,7 +52,7 @@ function fixtureServer(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), fixtureServer()],
+  plugins: [react(), tailwindcss(), fixtureServer()],
   server: { port: 5173 },
   optimizeDeps: {
     // pdf.js ships ESM with top-level await; keep it out of the pre-bundler.
