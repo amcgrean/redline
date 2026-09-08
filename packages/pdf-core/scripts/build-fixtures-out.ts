@@ -1,0 +1,120 @@
+/**
+ * Populate `fixtures/out/` for the manual interop checklist (docs/interop-checklist.md).
+ *
+ *   1. spike-0.1-blank-archd.pdf — a blank ARCH D sheet with one page scale (1/8" = 1'-0",
+ *      feet-inches to 1/16), one 80'-0" length and one 600 sf area.
+ *   2. corpus/<fixture>.moved.pdf — every fixture re-saved after moving one markup 10 pt.
+ *      (The corpus test writes these too; this script regenerates them without vitest.)
+ *
+ * Run with: pnpm fixtures:out   (vite-node, so it works on Node 20 as well as 22)
+ */
+
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { PDFDocument, rgb } from '@cantoo/pdf-lib';
+import { openDocument } from '../src/document/open.js';
+import { saveIncremental } from '../src/document/save.js';
+import { setPageScale } from '../src/measure/viewport.js';
+import { addAreaMeasurement, addLengthMeasurement, moveMarkup } from '../src/annots/write.js';
+
+const HERE = fileURLToPath(new URL('.', import.meta.url));
+const FIXTURES = resolve(HERE, '../../../fixtures');
+const OUT = join(FIXTURES, 'out');
+const AUTHOR = 'Aaron McGrean';
+
+async function blankArchD(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create({ updateMetadata: false });
+  const page = doc.addPage([2592, 1728]);
+  page.drawRectangle({
+    x: 36,
+    y: 36,
+    width: 2592 - 72,
+    height: 1728 - 72,
+    borderWidth: 1,
+    borderColor: rgb(0.6, 0.6, 0.6),
+  });
+  page.drawText('Redline POC — spike 0.1 — ARCH D, 1/8" = 1\'-0"', {
+    x: 60,
+    y: 1728 - 90,
+    size: 24,
+    color: rgb(0.3, 0.3, 0.3),
+  });
+  return doc.save({ useObjectStreams: false });
+}
+
+async function spike01(): Promise<void> {
+  const doc = await openDocument(await blankArchD());
+  setPageScale(
+    doc,
+    0,
+    { pageLength: 0.125, pageUnit: 'in', worldLength: 1, worldUnit: 'ft' },
+    { display: 'ft-in', precision: 16 },
+  );
+  // 720 pt at 9 pt/ft = 80'-0"
+  addLengthMeasurement(
+    doc,
+    0,
+    { x: 300, y: 1300 },
+    { x: 1020, y: 1300 },
+    {
+      subject: 'Ext Wall 2x6',
+      author: AUTHOR,
+    },
+  );
+  // 30 x 20 ft = 600 sf
+  addAreaMeasurement(
+    doc,
+    0,
+    [
+      { x: 300, y: 500 },
+      { x: 570, y: 500 },
+      { x: 570, y: 680 },
+      { x: 300, y: 680 },
+    ],
+    { subject: 'Tile', author: AUTHOR },
+  );
+  // A second length at 45 degrees with Revu-style slash endings, to compare rendering.
+  addLengthMeasurement(
+    doc,
+    0,
+    { x: 1300, y: 500 },
+    { x: 1900, y: 1100 },
+    {
+      subject: 'Diagonal',
+      author: AUTHOR,
+      style: { lineEnds: ['Slash', 'Slash'], leaderLength: -10, stroke: { r: 1, g: 0, b: 0 } },
+    },
+  );
+  const { bytes } = await saveIncremental(doc);
+  writeFileSync(join(OUT, 'spike-0.1-blank-archd.pdf'), bytes);
+  console.log('wrote spike-0.1-blank-archd.pdf');
+}
+
+async function corpusMoved(): Promise<void> {
+  const corpusOut = join(OUT, 'corpus');
+  mkdirSync(corpusOut, { recursive: true });
+  for (const name of readdirSync(FIXTURES).filter((f) => f.toLowerCase().endsWith('.pdf'))) {
+    const bytes = new Uint8Array(readFileSync(join(FIXTURES, name)));
+    const doc = await openDocument(bytes);
+    const target =
+      doc.markups.find((m) => m.geometry.kind === 'line' || m.geometry.kind === 'poly') ??
+      doc.markups[0];
+    if (!target) {
+      console.log(`skip ${name}: no annotations`);
+      continue;
+    }
+    moveMarkup(doc, target.id, 10, 10);
+    const { bytes: out, update } = await saveIncremental(doc);
+    const outName = `${basename(name, '.pdf')}.moved.pdf`;
+    writeFileSync(join(corpusOut, outName), out);
+    console.log(
+      `wrote corpus/${outName} — moved ${target.rawSubtype} ${target.id} on page ${target.pageIndex + 1} (+${update.length} bytes)`,
+    );
+  }
+}
+
+if (!existsSync(FIXTURES)) throw new Error(`fixtures directory missing: ${FIXTURES}`);
+mkdirSync(OUT, { recursive: true });
+await spike01();
+await corpusMoved();

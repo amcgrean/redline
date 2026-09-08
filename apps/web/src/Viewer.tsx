@@ -1,0 +1,281 @@
+/**
+ * Scrollable, zoomable page stack. Each page is rendered by pdf.js in tiles (no canvas
+ * over 16 Mpx, PLAN §3.5) and overlaid with a Konva stage that covers only the visible
+ * part of the page, so the markup canvas never grows with zoom either.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PdfjsDocument, PdfjsPage, PageViewport } from './pdfjs';
+import { renderTile, tilesFor, type Tile } from './pdfjs';
+import { MarkupLayer } from './MarkupLayer';
+import { actions, useEditor } from './store';
+
+const PAGE_GAP = 16;
+/** Extra CSS pixels rendered around the visible area so scrolling does not flash. */
+const RENDER_MARGIN = 256;
+
+interface PageLayout {
+  index: number;
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  viewport: PageViewport;
+  page: PdfjsPage;
+}
+
+interface ScrollBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function intersect(a: ScrollBox, b: ScrollBox): ScrollBox | undefined {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.left + a.width, b.left + b.width);
+  const bottom = Math.min(a.top + a.height, b.top + b.height);
+  if (right <= left || bottom <= top) return undefined;
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
+  const { zoom } = useEditor();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [pages, setPages] = useState<PdfjsPage[]>([]);
+  const [scroll, setScroll] = useState<ScrollBox>({ left: 0, top: 0, width: 0, height: 0 });
+
+  // Load every page proxy once per document (cheap: no rendering yet).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const loaded: PdfjsPage[] = [];
+      for (let i = 1; i <= pdfjs.numPages; i += 1) loaded.push(await pdfjs.getPage(i));
+      if (!cancelled) setPages(loaded);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfjs]);
+
+  // Lay pages out in a vertical stack, centred on the widest page.
+  const layout = useMemo(() => {
+    let top = PAGE_GAP;
+    let maxWidth = 0;
+    const items: PageLayout[] = pages.map((page, index) => {
+      const viewport = page.getViewport({ scale: zoom });
+      const item = {
+        index,
+        top,
+        left: 0,
+        width: viewport.width,
+        height: viewport.height,
+        viewport,
+        page,
+      };
+      top += viewport.height + PAGE_GAP;
+      maxWidth = Math.max(maxWidth, viewport.width);
+      return item;
+    });
+    for (const item of items) item.left = (maxWidth - item.width) / 2 + PAGE_GAP;
+    return { items, width: maxWidth + PAGE_GAP * 2, height: top };
+  }, [pages, zoom]);
+
+  const updateScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setScroll({
+      left: el.scrollLeft,
+      top: el.scrollTop,
+      width: el.clientWidth,
+      height: el.clientHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    updateScroll();
+    const el = scrollRef.current;
+    if (!el) return;
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updateScroll);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    const observer = new ResizeObserver(onScroll);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [updateScroll]);
+
+  // Ctrl+wheel zooms around the cursor.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const rect = el.getBoundingClientRect();
+      const cx = event.clientX - rect.left + el.scrollLeft;
+      const cy = event.clientY - rect.top + el.scrollTop;
+      actions.setZoom(zoom * factor);
+      requestAnimationFrame(() => {
+        el.scrollLeft = cx * factor - (event.clientX - rect.left);
+        el.scrollTop = cy * factor - (event.clientY - rect.top);
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoom]);
+
+  const visible = useMemo(
+    () => ({
+      left: scroll.left - RENDER_MARGIN,
+      top: scroll.top - RENDER_MARGIN,
+      width: scroll.width + RENDER_MARGIN * 2,
+      height: scroll.height + RENDER_MARGIN * 2,
+    }),
+    [scroll],
+  );
+
+  return (
+    <div className="viewer" ref={scrollRef}>
+      <div className="viewer-inner" style={{ width: layout.width, height: layout.height }}>
+        {layout.items.map((item) => {
+          const pageBox = {
+            left: item.left,
+            top: item.top,
+            width: item.width,
+            height: item.height,
+          };
+          const region = intersect(pageBox, visible);
+          return (
+            <div
+              key={item.index}
+              className="page"
+              style={{ left: item.left, top: item.top, width: item.width, height: item.height }}
+            >
+              {region && (
+                <PageTiles
+                  page={item.page}
+                  viewport={item.viewport}
+                  zoom={zoom}
+                  visible={{
+                    left: region.left - item.left,
+                    top: region.top - item.top,
+                    width: region.width,
+                    height: region.height,
+                  }}
+                />
+              )}
+              {region && (
+                <MarkupLayer
+                  pageIndex={item.index}
+                  viewport={item.viewport}
+                  visible={{
+                    left: Math.max(0, scroll.left - item.left),
+                    top: Math.max(0, scroll.top - item.top),
+                    width:
+                      Math.min(item.width, scroll.left + scroll.width - item.left) -
+                      Math.max(0, scroll.left - item.left),
+                    height:
+                      Math.min(item.height, scroll.top + scroll.height - item.top) -
+                      Math.max(0, scroll.top - item.top),
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface PageTilesProps {
+  page: PdfjsPage;
+  viewport: PageViewport;
+  zoom: number;
+  visible: ScrollBox;
+}
+
+/** Renders the tiles of one page that intersect `visible`, caching canvases per zoom. */
+function PageTiles({ page, viewport, zoom, visible }: PageTilesProps) {
+  const dpr = window.devicePixelRatio || 1;
+  const tiles = useMemo(() => tilesFor(viewport.width, viewport.height, dpr), [viewport, dpr]);
+  const cache = useRef(new Map<string, HTMLCanvasElement>());
+  const cacheKey = useRef<{ zoom: number; page: PdfjsPage }>({ zoom, page });
+  const hostRef = useRef<HTMLDivElement>(null);
+  const inflight = useRef(new Set<string>());
+  const failures = useRef(new Map<string, number>());
+  const [, force] = useState(0);
+
+  // A new zoom or a new page proxy (the document was re-opened) invalidates every tile.
+  if (cacheKey.current.zoom !== zoom || cacheKey.current.page !== page) {
+    cache.current.clear();
+    inflight.current.clear();
+    failures.current.clear();
+    cacheKey.current = { zoom, page };
+  }
+
+  const needed = tiles.filter((t) =>
+    intersect({ left: t.x, top: t.y, width: t.width, height: t.height }, visible),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    for (const tile of needed) {
+      const key = `${tile.x}:${tile.y}`;
+      if (cache.current.has(key) || inflight.current.has(key)) continue;
+      if ((failures.current.get(key) ?? 0) >= 3) continue;
+      inflight.current.add(key);
+      const canvas = document.createElement('canvas');
+      canvas.className = 'tile';
+      canvas.style.left = `${tile.x}px`;
+      canvas.style.top = `${tile.y}px`;
+      renderTile(page, viewport, tile, dpr, canvas)
+        .then(() => {
+          if (cancelled) return;
+          cache.current.set(key, canvas);
+          force((n) => n + 1);
+        })
+        .catch(() => {
+          // A render can fail when the document is swapped mid-flight; retry a few times.
+          const count = (failures.current.get(key) ?? 0) + 1;
+          failures.current.set(key, count);
+          if (count < 3 && !cancelled) setTimeout(() => force((n) => n + 1), 100);
+        })
+        .finally(() => inflight.current.delete(key));
+    }
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // Attach cached canvases directly; React only manages the host div.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const wanted = new Set(needed.map((t) => `${t.x}:${t.y}`));
+    for (const child of Array.from(host.children)) {
+      const key = child.getAttribute('data-key');
+      if (key && !wanted.has(key)) host.removeChild(child);
+    }
+    for (const tile of needed) {
+      const key = `${tile.x}:${tile.y}`;
+      const canvas = cache.current.get(key);
+      if (!canvas || canvas.parentElement === host) continue;
+      canvas.setAttribute('data-key', key);
+      host.appendChild(canvas);
+    }
+  });
+
+  return <div ref={hostRef} className="tiles" style={{ position: 'absolute', inset: 0 }} />;
+}
+
+export type { Tile };

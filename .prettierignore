@@ -1,0 +1,6 @@
+docs/PLAN.md
+docs/POC-KICKOFF.md
+docs/interop-checklist.md
+fixtures/
+pnpm-lock.yaml
+**/__snapshots__/

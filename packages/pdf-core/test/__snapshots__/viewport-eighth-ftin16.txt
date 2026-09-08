@@ -1,0 +1,75 @@
+<<
+  /BBox [ 0 0 2592 1728 ]
+  /Measure <<
+    /A [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (sf)
+      >>
+    ]
+    /D [
+      <<
+        /C 1
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS (-)
+        /Type /NumberFormat
+        /U (')
+      >>
+      <<
+        /C 12
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (")
+      >>
+    ]
+    /R (0.125 in = 1 ft' in")
+    /Subtype /RL
+    /T [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (°)
+      >>
+    ]
+    /TargetUnitConversion 0.001157407
+    /Type /Measure
+    /V [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (cu ft)
+      >>
+    ]
+    /X [
+      <<
+        /C 0.1111111
+        /D 16
+        /F /F
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (')
+      >>
+    ]
+  >>
+  /NM (<16 letters>)
+  /Type /Viewport
+>>

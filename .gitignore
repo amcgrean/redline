@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+reference/
+fixtures/out/
+apps/web/public/pdfjs/
+
+# Company drawings stay local (Aaron, 2026-09-08). Keep the READMEs so the folders exist.
+fixtures/**/*.pdf

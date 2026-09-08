@@ -1,0 +1,121 @@
+<<
+  /A [
+    <<
+      /C 1
+      /D 1
+      /FD true
+      /SS ()
+      /Type /NumberFormat
+      /U (sf)
+    >>
+  ]
+  /D [
+    <<
+      /C 1
+      /D 100
+      /F /D
+      /FD true
+      /PS ()
+      /SS ()
+      /Type /NumberFormat
+      /U (')
+    >>
+  ]
+  /R (0.25 in = 1 ft)
+  /Subtype /RL
+  /T [
+    <<
+      /C 1
+      /D 1
+      /FD true
+      /PS ()
+      /SS ()
+      /Type /NumberFormat
+      /U (°)
+    >>
+  ]
+  /TargetUnitConversion 0.001157407
+  /Type /Measure
+  /V [
+    <<
+      /C 1
+      /D 1
+      /FD true
+      /SS ()
+      /Type /NumberFormat
+      /U (cu ft)
+    >>
+  ]
+  /X [
+    <<
+      /C 0.05555556
+      /D 100
+      /F /D
+      /FD true
+      /SS ()
+      /Type /NumberFormat
+      /U (')
+    >>
+  ]
+>>
+
+<<
+  /A [
+    <<
+      /C 1
+      /D 1
+      /FD true
+      /SS ()
+      /Type /NumberFormat
+      /U (sq m)
+    >>
+  ]
+  /D [
+    <<
+      /C 1
+      /D 1000
+      /F /D
+      /FD true
+      /PS ()
+      /SS ()
+      /Type /NumberFormat
+      /U ( m)
+    >>
+  ]
+  /R (1 mm = 100 mm)
+  /Subtype /RL
+  /T [
+    <<
+      /C 1
+      /D 1
+      /FD true
+      /PS ()
+      /SS ()
+      /Type /NumberFormat
+      /U (°)
+    >>
+  ]
+  /TargetUnitConversion 0.0003527778
+  /Type /Measure
+  /V [
+    <<
+      /C 1
+      /D 1
+      /FD true
+      /SS ()
+      /Type /NumberFormat
+      /U (cu m)
+    >>
+  ]
+  /X [
+    <<
+      /C 0.03527778
+      /D 1000
+      /F /D
+      /FD true
+      /SS ()
+      /Type /NumberFormat
+      /U ( m)
+    >>
+  ]
+>>

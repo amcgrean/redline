@@ -1,0 +1,150 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 94 76.33 826 106 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /Font <<
+          /Helv <<
+            /BaseFont /Helvetica
+            /Encoding /WinAnsiEncoding
+            /Subtype /Type1
+            /Type /Font
+          >>
+        >>
+        /ProcSet [ /PDF /Text ]
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | 0.83 0.18 0.18 RG
+      | 0.83 0.18 0.18 rg
+      | 2 w
+      | 1 J
+      | 1 j
+      | 100 100 m
+      | 100 88 l
+      | S
+      | 820 100 m
+      | 820 88 l
+      | S
+      | 100 90 m
+      | 820 90 l
+      | S
+      | 100 90 m
+      | 108 94 l
+      | 108 86 l
+      | h
+      | B
+      | 820 90 m
+      | 812 86 l
+      | 812 94 l
+      | h
+      | B
+      | 0.83 0.18 0.18 rg
+      | BT
+      | /Helv 10 Tf
+      | 447.265 84.83 Td
+      | (80'-0") Tj
+      | ET
+      | Q
+  >>
+  /BS <<
+    /S /S
+    /Type /Border
+    /W 2
+  >>
+  /C [ 0.83 0.18 0.18 ]
+  /CA 1
+  /CP /Top
+  /Cap true
+  /Contents (80'-0")
+  /CreationDate (D:20260908101500-05'00')
+  /F 4
+  /IT /LineDimension
+  /L [ 100 100 820 100 ]
+  /LE [ /ClosedArrow /ClosedArrow ]
+  /LL 10
+  /LLE 2
+  /M (D:20260908101500-05'00')
+  /Measure <<
+    /A [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (sf)
+      >>
+    ]
+    /D [
+      <<
+        /C 1
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS (-)
+        /Type /NumberFormat
+        /U (')
+      >>
+      <<
+        /C 12
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (")
+      >>
+    ]
+    /R (0.125 in = 1 ft' in")
+    /Subtype /RL
+    /T [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (°)
+      >>
+    ]
+    /TargetUnitConversion 0.001157407
+    /Type /Measure
+    /V [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (cu ft)
+      >>
+    ]
+    /X [
+      <<
+        /C 0.1111111
+        /D 16
+        /F /F
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (')
+      >>
+    ]
+  >>
+  /NM (KQWVXHPTMBZRCJAL)
+  /P ref(3)
+  /Rect [ 94 76.33 826 106 ]
+  /Subj (Ext Wall 2x6)
+  /Subtype /Line
+  /T (Aaron McGrean)
+  /Type /Annot
+>>

@@ -1,0 +1,144 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 498.5 498.5 771.5 681.5 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /ExtGState <<
+          /GSa <<
+            /CA 1
+            /Type /ExtGState
+            /ca 0.25
+          >>
+        >>
+        /Font <<
+          /Helv <<
+            /BaseFont /Helvetica
+            /Encoding /WinAnsiEncoding
+            /Subtype /Type1
+            /Type /Font
+          >>
+        >>
+        /ProcSet [ /PDF /Text ]
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | /GSa gs
+      | 0.08 0.4 0.75 RG
+      | 1 w
+      | 1 J
+      | 1 j
+      | 0.08 0.4 0.75 rg
+      | 500 500 m
+      | 770 500 l
+      | 770 680 l
+      | 500 680 l
+      | h
+      | B
+      | Q
+      | q
+      | 0.08 0.4 0.75 rg
+      | BT
+      | /Helv 10 Tf
+      | 621.38 586.415 Td
+      | (600 sf) Tj
+      | ET
+      | Q
+  >>
+  /BS <<
+    /S /S
+    /Type /Border
+    /W 1
+  >>
+  /C [ 0.08 0.4 0.75 ]
+  /CA 1
+  /Cap true
+  /Contents (600 sf)
+  /CreationDate (D:20260908101500-05'00')
+  /F 4
+  /IC [ 0.08 0.4 0.75 ]
+  /IT /PolygonDimension
+  /M (D:20260908101500-05'00')
+  /Measure <<
+    /A [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (sf)
+      >>
+    ]
+    /D [
+      <<
+        /C 1
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS (-)
+        /Type /NumberFormat
+        /U (')
+      >>
+      <<
+        /C 12
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (")
+      >>
+    ]
+    /R (0.125 in = 1 ft' in")
+    /Subtype /RL
+    /T [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (°)
+      >>
+    ]
+    /TargetUnitConversion 0.001157407
+    /Type /Measure
+    /V [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (cu ft)
+      >>
+    ]
+    /X [
+      <<
+        /C 0.1111111
+        /D 16
+        /F /F
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (')
+      >>
+    ]
+  >>
+  /NM (AREAAREAAREAAREA)
+  /P ref(3)
+  /Rect [ 498.5 498.5 771.5 681.5 ]
+  /Subj (Tile)
+  /Subtype /Polygon
+  /T (Aaron McGrean)
+  /Type /Annot
+  /Vertices [ 500 500 770 500 770 680 500 680 ]
+>>
