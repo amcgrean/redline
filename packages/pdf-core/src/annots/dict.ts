@@ -134,10 +134,14 @@ export function round(value: number): number {
 export function pdfDate(date: Date): string {
   const pad = (n: number, width = 2) => String(Math.abs(Math.trunc(n))).padStart(width, '0');
   const offsetMinutes = -date.getTimezoneOffset();
+  // Build the wall-clock components from UTC shifted by the offset rather than from the
+  // local getters: identical in production, and it lets tests pin `getTimezoneOffset`
+  // so date-bearing snapshots render the same on a UTC CI runner.
+  const wall = new Date(date.getTime() + offsetMinutes * 60_000);
   const sign = offsetMinutes < 0 ? '-' : '+';
   return (
-    `D:${pad(date.getFullYear(), 4)}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
-    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}` +
+    `D:${pad(wall.getUTCFullYear(), 4)}${pad(wall.getUTCMonth() + 1)}${pad(wall.getUTCDate())}` +
+    `${pad(wall.getUTCHours())}${pad(wall.getUTCMinutes())}${pad(wall.getUTCSeconds())}` +
     `${sign}${pad(offsetMinutes / 60)}'${pad(offsetMinutes % 60)}'`
   );
 }

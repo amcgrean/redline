@@ -15,8 +15,7 @@
  * on that page — pre-existing entries (CAD exports often carry dozens) are never removed.
  */
 
-import type { PDFRef } from '@cantoo/pdf-lib';
-import { PDFArray, PDFDict, PDFName, PDFString, type PDFPage } from '@cantoo/pdf-lib';
+import { PDFArray, PDFDict, PDFName, PDFRef, PDFString, type PDFPage } from '@cantoo/pdf-lib';
 import type { PageScale, RedlineDocument, Scale, UnitFormat, WorldUnit } from '../types.js';
 import { generateUniqueNM } from '../ids.js';
 import { buildMeasureDict } from './measureDict.js';
@@ -30,7 +29,7 @@ import {
   lookupText,
   numArray,
 } from '../annots/dict.js';
-import { markPageArrayChanged } from '../document/save.js';
+import { markChanged, markDeleted, markPageArrayChanged } from '../document/save.js';
 
 /** The unit label Revu writes for each display format, used to read a scale back. */
 const UNIT_BY_LABEL: Record<string, DisplayFormat> = {
@@ -171,6 +170,37 @@ export function setPageScale(
   doc.pageScales.set(pageIndex, { scale, units, fromDocument: false });
   refreshMeasurementsOnPage(doc, pageIndex);
   return viewportRef;
+}
+
+/**
+ * Undo a calibration Redline made in this session: remove Redline's own viewport from the
+ * page's `/VP` (dropping the array only if Redline created it) and fall back to whatever
+ * scale the document itself carried. Viewports Redline did not write are never touched.
+ * Returns false when the page has no Redline viewport to remove.
+ */
+export function clearPageScale(doc: RedlineDocument, pageIndex: number): boolean {
+  const own = doc.ownViewports.get(pageIndex);
+  if (!own) return false;
+  const page = doc.pdfDoc.getPage(pageIndex);
+  const vp = page.node.lookup(PDFName.of('VP'));
+  if (vp instanceof PDFArray) {
+    for (let i = vp.size() - 1; i >= 0; i -= 1) if (vp.get(i) === own) vp.remove(i);
+    if (vp.size() === 0) page.node.delete(PDFName.of('VP'));
+  }
+  markPageArrayChanged(doc, pageIndex, 'VP');
+  if (vp instanceof PDFArray && vp.size() === 0) markChanged(doc, page.ref);
+
+  const viewport = doc.pdfDoc.context.lookup(own);
+  const measureRef = viewport instanceof PDFDict ? viewport.get(PDFName.of('Measure')) : undefined;
+  if (measureRef instanceof PDFRef) markDeleted(doc, measureRef);
+  markDeleted(doc, own);
+  doc.ownViewports.delete(pageIndex);
+
+  const documentScale = readPageScale(page);
+  if (documentScale) doc.pageScales.set(pageIndex, documentScale);
+  else doc.pageScales.delete(pageIndex);
+  refreshMeasurementsOnPage(doc, pageIndex);
+  return true;
 }
 
 /** Existing measurements on a page keep their own /Measure; only the cached numbers update. */

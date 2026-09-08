@@ -7,7 +7,13 @@ export { openDocument, requireMarkup, isPlaceholderId } from './document/open.js
 export { saveIncremental, markChanged } from './document/save.js';
 export type { SaveResult } from './document/save.js';
 
-export { setPageScale, readPageScale, parseMeasureDict } from './measure/viewport.js';
+export {
+  setPageScale,
+  clearPageScale,
+  readPageScale,
+  parseMeasureDict,
+} from './measure/viewport.js';
+export { deleteMarkup, pageHasNoAnnots } from './annots/delete.js';
 export { buildMeasureDict } from './measure/measureDict.js';
 export { computeMeasurement } from './measure/compute.js';
 export {

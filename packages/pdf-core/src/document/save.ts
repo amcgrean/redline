@@ -49,6 +49,17 @@ export function markChanged(doc: RedlineDocument, ref: PDFRef | undefined): void
 }
 
 /**
+ * Record that the object behind `ref` is gone. A new object (registered after the
+ * snapshot) is simply dropped from the update section; an object from the file gets a
+ * free xref entry.
+ */
+export function markDeleted(doc: RedlineDocument, ref: PDFRef | undefined): void {
+  if (!ref) return;
+  snapshotOf(doc).markDeletedRef(ref);
+  doc.pdfDoc.context.delete(ref);
+}
+
+/**
  * Mark the holder of a page-level array (`/Annots`, `/VP`) as changed. The array may be
  * an indirect object of its own — Revu writes `117 0 obj [115 0 R …]` — in which case
  * the array, not the page, is what needs rewriting.
