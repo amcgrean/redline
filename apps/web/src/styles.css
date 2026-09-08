@@ -368,3 +368,48 @@ body {
   color: #555;
   min-width: 80px;
 }
+
+/* Autosave indicator and recovery panel (Phase 1 PR 5). */
+.toolbar .autosave {
+  color: #777;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.toolbar .autosave[data-autosave='error'] {
+  color: #c62828;
+}
+.recover {
+  width: min(640px, 100%);
+  font-size: 13px;
+  border: 1px solid #e0c060;
+  background: #fff8e1;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.recover-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.recover ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recover li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+}
+.recover-name {
+  font-weight: 500;
+}
+.recover li button:not(.linklike) {
+  margin-left: auto;
+  font: inherit;
+  padding: 2px 10px;
+  border: 1px solid #999;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+}

@@ -8,6 +8,7 @@ import { Viewer } from './Viewer';
 import { Thumbnails } from './Thumbnails';
 import { Recents } from './Recents';
 import { FindBar } from './FindBar';
+import { Recover } from './Recover';
 import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
 import {
   handleFromDrop,
@@ -156,6 +157,7 @@ export function App() {
     activeId,
     layoutMode,
     showThumbnails,
+    autosave,
   } = state;
 
   useEffect(() => {
@@ -442,6 +444,15 @@ export function App() {
         </button>
         <span className="spacer" />
         <span className="status">{status}</span>
+        {hasDoc && autosave !== 'idle' && (
+          <span className="autosave" data-autosave={autosave} title="Autosave">
+            {autosave === 'saved'
+              ? 'autosaved'
+              : autosave === 'error'
+                ? 'autosave failed'
+                : 'autosaving…'}
+          </span>
+        )}
       </div>
       {documents.length > 0 && (
         <div className="tabs" role="tablist" aria-label="Open documents">
@@ -510,6 +521,7 @@ export function App() {
       ) : (
         <div className="empty">
           <div className={`dropzone${over ? ' over' : ''}`}>Drop a PDF here</div>
+          <Recover excludeKeys={[]} />
           <Recents onOpenHandle={onOpenRecent} onPick={() => void onOpen()} />
         </div>
       )}

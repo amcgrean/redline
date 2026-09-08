@@ -79,6 +79,8 @@ export interface Session {
   file: FileTarget;
   history: History;
   dirty: boolean;
+  /** Identifies this document's autosave slot across reloads. */
+  autosaveKey: string;
 }
 
 const sessions = new Map<string, Session>();

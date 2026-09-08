@@ -14,7 +14,14 @@ import type { Markup, PageScale, Point, Scale, UnitFormat } from '@redline/pdf-c
 import { openDocument, saveIncremental } from '@redline/pdf-core';
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
-import { rememberRecent } from '../db';
+import { rememberRecent, type AutosaveEntry } from '../db';
+import {
+  clearAutosave,
+  loadAutosave,
+  newAutosaveKey,
+  scheduleAutosave,
+  type AutosaveState,
+} from '../autosave';
 import {
   addSession,
   getSession,
@@ -58,6 +65,7 @@ export interface EditorUiState {
   viewRotation: number;
   showThumbnails: boolean;
   find: { open: boolean; query: string; hits: FindHit[]; index: number };
+  autosave: AutosaveState;
   /** 0-based page the viewer considers current (tracks scrolling). */
   currentPage: number;
   /** Set by `goToPage`; the viewer scrolls there and clears it. */
@@ -89,6 +97,7 @@ export const useEditorStore = create<EditorUiState>()(
     viewRotation: 0,
     showThumbnails: false,
     find: { open: false, query: '', hits: [], index: 0 },
+    autosave: 'idle',
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -124,6 +133,24 @@ function bump(patch: Partial<EditorUiState> = {}): void {
     syncActive(s, session);
     s.version += 1;
   });
+  scheduleAutosave(
+    {
+      key: session.autosaveKey,
+      doc: session.doc,
+      name: session.file.name,
+      ...(session.file.handle && { handle: session.file.handle }),
+    },
+    setAutosaveState(session.id),
+  );
+}
+
+/** Only the active document's autosave state is shown. */
+function setAutosaveState(sessionId: string): (state: AutosaveState) => void {
+  return (state) => {
+    set((s) => {
+      if (s.activeId === sessionId) s.autosave = state;
+    });
+  };
 }
 
 async function loadBoth(bytes: Uint8Array) {
@@ -132,7 +159,11 @@ async function loadBoth(bytes: Uint8Array) {
 
 export const actions = {
   /** Open a document in a new tab and make it active. */
-  async open(bytes: Uint8Array, file: FileTarget): Promise<void> {
+  async open(
+    bytes: Uint8Array,
+    file: FileTarget,
+    options: { recovered?: AutosaveEntry } = {},
+  ): Promise<void> {
     set((s) => {
       s.status = `Opening ${file.name}…`;
     });
@@ -143,17 +174,23 @@ export const actions = {
       pdfjs,
       file,
       history: new History(),
-      dirty: false,
+      // A recovered document has changes the user never saved: keep it dirty and keep
+      // autosaving into the same slot until they Save.
+      dirty: !!options.recovered,
+      autosaveKey: options.recovered?.key ?? newAutosaveKey(),
     };
     addSession(session);
     set((s) => {
       syncActive(s, session);
       s.find = { open: false, query: '', hits: [], index: 0 };
+      s.autosave = options.recovered ? 'saved' : 'idle';
       s.selectedId = undefined;
       s.tool = 'select';
       s.currentPage = 0;
       s.version += 1;
-      s.status = `${file.name}: ${s.pageCount} pages, ${doc.markups.length} markups`;
+      s.status = options.recovered
+        ? `Recovered ${file.name} — unsaved changes, Save to keep them`
+        : `${file.name}: ${s.pageCount} pages, ${doc.markups.length} markups`;
     });
     void rememberRecent({
       name: file.name,
@@ -169,6 +206,7 @@ export const actions = {
     set((s) => {
       syncActive(s, session);
       s.find = { open: false, query: '', hits: [], index: 0 };
+      s.autosave = session.dirty ? 'saved' : 'idle';
       s.selectedId = undefined;
       s.currentPage = 0;
       s.version += 1;
@@ -182,6 +220,7 @@ export const actions = {
     if (!session) return true;
     if (session.dirty && !force) return false;
     const next = removeSession(id);
+    void clearAutosave(session.autosaveKey);
     set((s) => {
       syncActive(s, next);
       s.find = { open: false, query: '', hits: [], index: 0 };
@@ -306,6 +345,27 @@ export const actions = {
     });
   },
 
+  /** Reopen an autosave as a dirty document in a new tab. */
+  async recover(entry: AutosaveEntry): Promise<void> {
+    const bytes = await loadAutosave(entry);
+    if (!bytes) {
+      set((s) => {
+        s.status = `Autosave for ${entry.name} is no longer available`;
+      });
+      await clearAutosave(entry.key);
+      return;
+    }
+    await actions.open(
+      bytes,
+      entry.handle ? { name: entry.name, handle: entry.handle } : { name: entry.name },
+      { recovered: entry },
+    );
+  },
+
+  async discardAutosave(key: string): Promise<void> {
+    await clearAutosave(key);
+  },
+
   toggleThumbnails(show?: boolean): void {
     set((s) => {
       s.showThumbnails = show ?? !s.showThumbnails;
@@ -422,8 +482,10 @@ export const actions = {
     // is a Phase 2 item).
     const [doc, pdfjs] = await loadBoth(bytes);
     replaceSessionDocument(session, doc, pdfjs, target);
+    await clearAutosave(session.autosaveKey);
     set((s) => {
       syncActive(s, session);
+      s.autosave = 'idle';
       s.version += 1;
       s.status = `Saved ${target.name} (+${update.length} bytes appended)`;
     });

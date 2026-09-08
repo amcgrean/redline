@@ -9,6 +9,23 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { FileHandleLike } from './fileTarget';
 
+export interface AutosaveEntry {
+  key: string;
+  name: string;
+  savedAt: number;
+  size: number;
+  pageCount: number;
+  /** Where the bytes live. */
+  store: 'opfs' | 'idb';
+  /** Original file handle, so Recover can Save in place again. */
+  handle?: FileHandleLike;
+}
+
+export interface AutosaveBlob {
+  key: string;
+  blob: Blob;
+}
+
 export interface RecentEntry {
   id?: number;
   name: string;
@@ -23,10 +40,17 @@ const MAX_RECENTS = 20;
 
 export const db = new Dexie('redline') as Dexie & {
   recents: EntityTable<RecentEntry, 'id'>;
+  autosaves: EntityTable<AutosaveEntry, 'key'>;
+  autosaveBlobs: EntityTable<AutosaveBlob, 'key'>;
 };
 
 db.version(1).stores({
   recents: '++id, openedAt, name',
+});
+db.version(2).stores({
+  recents: '++id, openedAt, name',
+  autosaves: 'key, savedAt, name',
+  autosaveBlobs: 'key',
 });
 
 /** Record an open. Same-named entries collapse into one so the list stays useful. */
