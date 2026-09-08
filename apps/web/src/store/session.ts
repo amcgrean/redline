@@ -1,36 +1,17 @@
 /**
- * The open document and its companions, kept OUTSIDE the reactive store.
+ * Open documents and their companions, kept OUTSIDE the reactive store.
  *
  * pdf-core mutates `RedlineDocument` in place and immer freezes whatever it produces, so
- * the document must never pass through the Zustand state tree. Components learn about
+ * documents must never pass through the Zustand state tree. Components learn about
  * changes through the store's `version` counter and read the live objects from here.
+ *
+ * Several documents can be open at once (tabs); each has its own undo history.
  */
 
 import type { RedlineDocument } from '@redline/pdf-core';
 import type { PdfjsHandle } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
 import type { Command } from './commands';
-
-export interface Session {
-  doc: RedlineDocument;
-  pdfjs: PdfjsHandle;
-  file: FileTarget;
-}
-
-let current: Session | undefined;
-
-export function getSession(): Session | undefined {
-  return current;
-}
-
-export function requireSession(): Session {
-  if (!current) throw new Error('No document is open');
-  return current;
-}
-
-export function setSession(session: Session | undefined): void {
-  current = session;
-}
 
 /**
  * Linear undo history. Every user action that touches the document is a `Command`
@@ -90,4 +71,80 @@ export class History {
   }
 }
 
-export const history = new History();
+export interface Session {
+  /** App-level id for the tab; unrelated to anything in the PDF. */
+  id: string;
+  doc: RedlineDocument;
+  pdfjs: PdfjsHandle;
+  file: FileTarget;
+  history: History;
+  dirty: boolean;
+}
+
+const sessions = new Map<string, Session>();
+let activeId: string | undefined;
+let counter = 0;
+
+export function newSessionId(): string {
+  counter += 1;
+  return `doc-${counter}`;
+}
+
+/** The active session, if any. */
+export function getSession(): Session | undefined {
+  return activeId ? sessions.get(activeId) : undefined;
+}
+
+export function requireSession(): Session {
+  const session = getSession();
+  if (!session) throw new Error('No document is open');
+  return session;
+}
+
+export function getSessionById(id: string): Session | undefined {
+  return sessions.get(id);
+}
+
+export function listSessions(): Session[] {
+  return [...sessions.values()];
+}
+
+export function addSession(session: Session): void {
+  sessions.set(session.id, session);
+  activeId = session.id;
+}
+
+export function setActiveSession(id: string): Session | undefined {
+  if (!sessions.has(id)) return undefined;
+  activeId = id;
+  return sessions.get(id);
+}
+
+/** Remove a session; returns the session that became active (if any). */
+export function removeSession(id: string): Session | undefined {
+  const order = [...sessions.keys()];
+  const index = order.indexOf(id);
+  const closing = sessions.get(id);
+  sessions.delete(id);
+  closing?.pdfjs.destroy().catch(() => undefined);
+  if (activeId === id) {
+    const neighbour = order[index + 1] ?? order[index - 1];
+    activeId = neighbour && sessions.has(neighbour) ? neighbour : undefined;
+  }
+  return getSession();
+}
+
+/** Swap the document behind a session (after a save re-opens from the saved bytes). */
+export function replaceSessionDocument(
+  session: Session,
+  doc: RedlineDocument,
+  pdfjs: PdfjsHandle,
+  file: FileTarget,
+): void {
+  session.pdfjs.destroy().catch(() => undefined);
+  session.doc = doc;
+  session.pdfjs = pdfjs;
+  session.file = file;
+  session.history.clear();
+  session.dirty = false;
+}

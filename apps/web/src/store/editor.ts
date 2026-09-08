@@ -1,9 +1,10 @@
 /**
  * Editor UI state (Zustand + immer) and the actions that drive it.
  *
- * Only serialisable UI state lives here. The document itself is in `session.ts`; every
- * mutation goes through a `Command` on the `history` stack and bumps `version` so
- * subscribers re-render.
+ * Only serialisable UI state lives here. Documents are in `session.ts`; every mutation
+ * goes through a `Command` on the session's history and bumps `version` so subscribers
+ * re-render. The fields that describe the active document (name, page count, dirty,
+ * undo state) are mirrored into the store whenever the active session changes.
  */
 
 import { useMemo } from 'react';
@@ -13,14 +14,35 @@ import type { Markup, PageScale, Point, Scale, UnitFormat } from '@redline/pdf-c
 import { openDocument, saveIncremental } from '@redline/pdf-core';
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
-import { getSession, history, requireSession, setSession, type Session } from './session';
+import { rememberRecent } from '../db';
+import {
+  addSession,
+  getSession,
+  getSessionById,
+  History,
+  listSessions,
+  newSessionId,
+  removeSession,
+  replaceSessionDocument,
+  requireSession,
+  setActiveSession,
+  type Session,
+} from './session';
 import { addAreaCommand, addLengthCommand, calibrateCommand, moveCommand } from './commands';
 
 export type Tool = 'select' | 'calibrate' | 'length' | 'area';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 
+export interface DocumentTab {
+  id: string;
+  name: string;
+  dirty: boolean;
+}
+
 export interface EditorUiState {
+  documents: DocumentTab[];
+  activeId?: string;
   hasDoc: boolean;
   fileName?: string;
   pageCount: number;
@@ -49,6 +71,7 @@ const ZOOM_STEP = 1.25;
 
 export const useEditorStore = create<EditorUiState>()(
   immer(() => ({
+    documents: [],
     hasDoc: false,
     pageCount: 0,
     tool: 'select',
@@ -66,52 +89,93 @@ export const useEditorStore = create<EditorUiState>()(
 
 const set = useEditorStore.setState;
 
-function historyFlags(): Pick<EditorUiState, 'canUndo' | 'canRedo' | 'undoLabel' | 'redoLabel'> {
-  return {
-    canUndo: history.canUndo,
-    canRedo: history.canRedo,
-    undoLabel: history.undoLabel,
-    redoLabel: history.redoLabel,
-  };
+/** Mirror the active session's document-level facts into the store. */
+function syncActive(s: EditorUiState, session: Session | undefined): void {
+  s.documents = listSessions().map((x) => ({ id: x.id, name: x.file.name, dirty: x.dirty }));
+  s.activeId = session?.id;
+  s.hasDoc = !!session;
+  s.fileName = session?.file.name;
+  s.pageCount = session ? session.doc.pdfDoc.getPageCount() : 0;
+  s.dirty = session?.dirty ?? false;
+  s.canUndo = session?.history.canUndo ?? false;
+  s.canRedo = session?.history.canRedo ?? false;
+  s.undoLabel = session?.history.undoLabel;
+  s.redoLabel = session?.history.redoLabel;
 }
 
 /** After a document mutation: bump the version, mark dirty, refresh undo state. */
 function bump(patch: Partial<EditorUiState> = {}): void {
+  const session = requireSession();
+  session.dirty = true;
   set((s) => {
-    Object.assign(s, patch, historyFlags());
+    Object.assign(s, patch);
+    syncActive(s, session);
     s.version += 1;
-    s.dirty = true;
   });
 }
 
-async function installSession(bytes: Uint8Array, file: FileTarget): Promise<Session> {
-  const previous = getSession();
-  const [doc, pdfjs] = await Promise.all([openDocument(bytes), loadPdfjs(bytes)]);
-  previous?.pdfjs.destroy().catch(() => undefined);
-  const session: Session = { doc, pdfjs, file };
-  setSession(session);
-  return session;
+async function loadBoth(bytes: Uint8Array) {
+  return Promise.all([openDocument(bytes), loadPdfjs(bytes)]);
 }
 
 export const actions = {
+  /** Open a document in a new tab and make it active. */
   async open(bytes: Uint8Array, file: FileTarget): Promise<void> {
     set((s) => {
       s.status = `Opening ${file.name}…`;
     });
-    const session = await installSession(bytes, file);
-    history.clear();
+    const [doc, pdfjs] = await loadBoth(bytes);
+    const session: Session = {
+      id: newSessionId(),
+      doc,
+      pdfjs,
+      file,
+      history: new History(),
+      dirty: false,
+    };
+    addSession(session);
     set((s) => {
-      s.hasDoc = true;
-      s.fileName = file.name;
-      s.pageCount = session.doc.pdfDoc.getPageCount();
+      syncActive(s, session);
       s.selectedId = undefined;
       s.tool = 'select';
       s.currentPage = 0;
       s.version += 1;
-      s.dirty = false;
-      s.status = `${file.name}: ${s.pageCount} pages, ${session.doc.markups.length} markups`;
-      Object.assign(s, historyFlags());
+      s.status = `${file.name}: ${s.pageCount} pages, ${doc.markups.length} markups`;
     });
+    void rememberRecent({
+      name: file.name,
+      size: bytes.byteLength,
+      pageCount: doc.pdfDoc.getPageCount(),
+      ...(file.handle && { handle: file.handle }),
+    });
+  },
+
+  activate(id: string): void {
+    const session = setActiveSession(id);
+    if (!session) return;
+    set((s) => {
+      syncActive(s, session);
+      s.selectedId = undefined;
+      s.currentPage = 0;
+      s.version += 1;
+      s.status = `${session.file.name}: ${s.pageCount} pages, ${session.doc.markups.length} markups`;
+    });
+  },
+
+  /** Close a tab. Returns false when the document is dirty and `force` is not set. */
+  close(id: string, force = false): boolean {
+    const session = getSessionById(id);
+    if (!session) return true;
+    if (session.dirty && !force) return false;
+    const next = removeSession(id);
+    set((s) => {
+      syncActive(s, next);
+      s.selectedId = undefined;
+      s.currentPage = 0;
+      s.version += 1;
+      s.status = next ? `${next.file.name}` : 'Drop a PDF to begin';
+    });
+    return true;
   },
 
   setTool(tool: Tool): void {
@@ -196,13 +260,13 @@ export const actions = {
   },
 
   calibrate(pageIndex: number, scale: Scale, units: UnitFormat): void {
-    const { doc } = requireSession();
+    const { doc, history } = requireSession();
     history.run(calibrateCommand(doc, pageIndex, scale, units));
     bump({ status: `Page ${pageIndex + 1} scale set` });
   },
 
   addLength(pageIndex: number, a: Point, b: Point): Markup | undefined {
-    const { doc } = requireSession();
+    const { doc, history } = requireSession();
     const command = addLengthCommand(doc, pageIndex, a, b, {
       subject: 'Length',
       author: useEditorStore.getState().author,
@@ -213,7 +277,7 @@ export const actions = {
   },
 
   addArea(pageIndex: number, vertices: Point[]): Markup | undefined {
-    const { doc } = requireSession();
+    const { doc, history } = requireSession();
     const command = addAreaCommand(doc, pageIndex, vertices, {
       subject: 'Area',
       author: useEditorStore.getState().author,
@@ -225,19 +289,21 @@ export const actions = {
 
   move(id: string, dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
-    const { doc } = requireSession();
+    const { doc, history } = requireSession();
     history.run(moveCommand(doc, id, dx, dy));
     bump({ status: `Moved ${id}` });
   },
 
   undo(): void {
-    const command = history.undo();
+    const session = getSession();
+    const command = session?.history.undo();
     if (!command) return;
     bump({ selectedId: undefined, status: `Undo ${command.label}` });
   },
 
   redo(): void {
-    const command = history.redo();
+    const session = getSession();
+    const command = session?.history.redo();
     if (!command) return;
     bump({ selectedId: undefined, status: `Redo ${command.label}` });
   },
@@ -263,14 +329,12 @@ export const actions = {
     // Re-open from the saved bytes so the next save is incremental on top of this one.
     // The command stack refers to the old document, so it is cleared (undo across a save
     // is a Phase 2 item).
-    await installSession(bytes, target);
-    history.clear();
+    const [doc, pdfjs] = await loadBoth(bytes);
+    replaceSessionDocument(session, doc, pdfjs, target);
     set((s) => {
-      s.fileName = target.name;
+      syncActive(s, session);
       s.version += 1;
-      s.dirty = false;
       s.status = `Saved ${target.name} (+${update.length} bytes appended)`;
-      Object.assign(s, historyFlags());
     });
   },
 };

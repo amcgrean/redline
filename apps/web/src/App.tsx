@@ -1,13 +1,20 @@
 /**
- * The shell: one plain page with a drop zone, the viewer, and a toolbar. Panels, tool
- * chest and menus arrive later in Phase 1/2; this pass adds undo/redo, zoom presets,
- * page navigation and the Appendix B shortcuts.
+ * The shell: toolbar, document tabs, viewer, and the empty state with recents.
+ * Panels, tool chest and menus arrive later in Phase 1/2.
  */
 
 import { useCallback, useEffect, useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { Viewer } from './Viewer';
+import { Recents } from './Recents';
 import { actions, useEditor, type Tool, type ZoomMode } from './store';
-import { pickFileHandle, saveBytes, supportsSaveInPlace, type FileHandleLike } from './fileTarget';
+import {
+  handleFromDrop,
+  pickFileHandle,
+  saveBytes,
+  supportsSaveInPlace,
+  type FileHandleLike,
+} from './fileTarget';
+import type { RecentEntry } from './db';
 import { formatFeetInches, worldUnitsPerPoint } from '@redline/pdf-core';
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
@@ -28,6 +35,19 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
 async function openFile(file: File, handle?: FileHandleLike): Promise<void> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   await actions.open(bytes, handle ? { name: file.name, handle } : { name: file.name });
+}
+
+async function openHandle(handle: FileHandleLike): Promise<void> {
+  const permission = (await handle.requestPermission?.({ mode: 'readwrite' })) ?? 'granted';
+  if (permission !== 'granted') {
+    actions.setStatus(`Permission to open ${handle.name} was not granted`);
+    return;
+  }
+  await openFile(await handle.getFile(), handle);
+}
+
+function isPdf(file: File): boolean {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -102,6 +122,7 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
 export function App() {
   const state = useEditor();
   const [over, setOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const {
     doc,
     pdfjs,
@@ -118,6 +139,8 @@ export function App() {
     canRedo,
     undoLabel,
     redoLabel,
+    documents,
+    activeId,
   } = state;
 
   useEffect(() => {
@@ -125,6 +148,21 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [hasDoc, dirty]);
+
+  // Paste a PDF from the clipboard (e.g. copied in Explorer).
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+      const files = Array.from(event.clipboardData?.files ?? []).filter(isPdf);
+      if (files.length === 0) return;
+      event.preventDefault();
+      void (async () => {
+        for (const file of files) await openFile(file);
+      })();
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
 
   // Dev convenience: `?fixture=<name>` opens a file from `fixtures/` (served by vite.config.ts).
   // The ref guards against StrictMode's double effect run, which would open the file twice.
@@ -146,29 +184,56 @@ export function App() {
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (dirty) event.preventDefault();
+      if (documents.some((d) => d.dirty)) event.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [documents]);
 
+  // Drop anywhere: every dropped PDF opens in its own tab, with a writable handle when
+  // the browser hands one over (Chromium).
   const onDrop = useCallback(async (event: DragEvent) => {
     event.preventDefault();
     setOver(false);
-    const file = event.dataTransfer.files[0];
-    if (file) await openFile(file);
+    const items = Array.from(event.dataTransfer.items ?? []);
+    const files = Array.from(event.dataTransfer.files);
+    for (const [index, file] of files.entries()) {
+      if (!isPdf(file)) continue;
+      const handle = await handleFromDrop(items[index]);
+      await openFile(file, handle);
+    }
   }, []);
 
   const onPick = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) await openFile(file);
+    const files = Array.from(event.target.files ?? []);
+    for (const file of files) if (isPdf(file)) await openFile(file);
     event.target.value = '';
   }, []);
 
-  const onOpenInPlace = useCallback(async () => {
-    const handle = await pickFileHandle();
-    if (!handle) return;
-    await openFile(await handle.getFile(), handle);
+  /** Open…: the picker when it can give us a handle, the plain input otherwise. */
+  const onOpen = useCallback(async () => {
+    if (supportsSaveInPlace()) {
+      const handles = await pickFileHandle(true);
+      for (const handle of handles) await openFile(await handle.getFile(), handle);
+      return;
+    }
+    fileInput.current?.click();
+  }, []);
+
+  const onOpenRecent = useCallback(async (entry: RecentEntry) => {
+    if (!entry.handle) return;
+    try {
+      await openHandle(entry.handle);
+    } catch {
+      actions.setStatus(`Could not reopen ${entry.name}; it may have moved`);
+    }
+  }, []);
+
+  const onCloseTab = useCallback((id: string) => {
+    if (actions.close(id)) return;
+    if (window.confirm('This document has unsaved changes. Close it anyway?')) {
+      actions.close(id, true);
+    }
   }, []);
 
   const selected = doc?.markups.find((m) => m.id === selectedId);
@@ -181,29 +246,30 @@ export function App() {
   };
 
   return (
-    <>
+    <div
+      className={`app${over ? ' over' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setOver(false);
+      }}
+      onDrop={onDrop}
+    >
       <div className="toolbar">
         <strong>Redline</strong>
-        <label>
-          <input
-            type="file"
-            accept="application/pdf,.pdf"
-            onChange={onPick}
-            style={{ display: 'none' }}
-          />
-          <span role="button" className="linklike">
-            Open…
-          </span>
-        </label>
-        {supportsSaveInPlace() && (
-          <button
-            type="button"
-            onClick={onOpenInPlace}
-            title="Open with a writable handle so Save writes in place"
-          >
-            Open (save in place)…
-          </button>
-        )}
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          onChange={onPick}
+          style={{ display: 'none' }}
+        />
+        <button type="button" onClick={onOpen} title="Ctrl+O">
+          Open…
+        </button>
         <span className="sep" />
         {TOOLS.map((t) => (
           <button
@@ -304,10 +370,43 @@ export function App() {
         <span className="spacer" />
         <span className="status">{status}</span>
       </div>
+      {documents.length > 0 && (
+        <div className="tabs" role="tablist" aria-label="Open documents">
+          {documents.map((d) => (
+            <div
+              key={d.id}
+              role="tab"
+              aria-selected={d.id === activeId}
+              className={`tab${d.id === activeId ? ' active' : ''}`}
+              onClick={() => actions.activate(d.id)}
+              onAuxClick={(e) => {
+                if (e.button === 1) onCloseTab(d.id);
+              }}
+              title={d.name}
+            >
+              <span className="tab-name">
+                {d.name}
+                {d.dirty ? ' *' : ''}
+              </span>
+              <button
+                type="button"
+                className="tab-close"
+                aria-label={`Close ${d.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseTab(d.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="hint">
         {hasDoc
           ? TOOLS.find((t) => t.id === tool)?.hint
-          : 'Drop a PDF (try a Revu-marked set) or use Open.'}
+          : 'Drop a PDF (try a Revu-marked set), paste one, or use Open.'}
         {hasDoc && (
           <>
             {' '}
@@ -330,20 +429,13 @@ export function App() {
         )}
       </div>
       {doc && pdfjs ? (
-        <Viewer key={pdfjs.doc.fingerprints[0] ?? 'doc'} pdfjs={pdfjs.doc} />
+        <Viewer key={pdfjs.doc.fingerprints[0] ?? activeId} pdfjs={pdfjs.doc} />
       ) : (
-        <div
-          className={`dropzone${over ? ' over' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={onDrop}
-        >
-          Drop a PDF here
+        <div className="empty">
+          <div className={`dropzone${over ? ' over' : ''}`}>Drop a PDF here</div>
+          <Recents onOpenHandle={onOpenRecent} onPick={() => void onOpen()} />
         </div>
       )}
-    </>
+    </div>
   );
 }

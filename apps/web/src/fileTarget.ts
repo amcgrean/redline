@@ -28,13 +28,30 @@ export function supportsSaveInPlace(): boolean {
   return typeof (window as unknown as PickerWindow).showOpenFilePicker === 'function';
 }
 
-/** Open through the picker so we hold a writable handle. Returns undefined if cancelled. */
-export async function pickFileHandle(): Promise<FileHandleLike | undefined> {
+/** Open through the picker so we hold writable handles. Empty when cancelled/unsupported. */
+export async function pickFileHandle(multiple = false): Promise<FileHandleLike[]> {
   const picker = (window as unknown as PickerWindow).showOpenFilePicker;
-  if (!picker) return undefined;
+  if (!picker) return [];
   try {
-    const [handle] = await picker({ types: PDF_TYPES, multiple: false });
-    return handle;
+    return await picker({ types: PDF_TYPES, multiple });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The writable handle behind a dropped file, when the browser offers one (Chromium's
+ * `DataTransferItem.getAsFileSystemHandle`). Undefined elsewhere, or for directories.
+ */
+export async function handleFromDrop(
+  item: DataTransferItem | undefined,
+): Promise<FileHandleLike | undefined> {
+  const getter = (item as unknown as { getAsFileSystemHandle?: () => Promise<unknown> } | undefined)
+    ?.getAsFileSystemHandle;
+  if (!item || typeof getter !== 'function') return undefined;
+  try {
+    const handle = (await getter.call(item)) as { kind?: string } | null;
+    return handle && handle.kind === 'file' ? (handle as unknown as FileHandleLike) : undefined;
   } catch {
     return undefined;
   }
