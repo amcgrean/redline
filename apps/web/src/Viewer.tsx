@@ -3,8 +3,9 @@
  * over 16 Mpx, PLAN §3.5) and overlaid with a Konva stage that covers only the visible
  * part of the page, so the markup canvas never grows with zoom either.
  *
- * This pass adds fit-page / fit-width zoom modes, current-page tracking and
- * programmatic page navigation.
+ * Supports fit-page / fit-width zoom, continuous or single-page layout, and a view-only
+ * rotation. Rotation goes through pdf.js's viewport, so the markup layer (which maps
+ * user space through the same viewport) rotates with the page for free.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -43,9 +44,14 @@ function intersect(a: ScrollBox, b: ScrollBox): ScrollBox | undefined {
   return { left, top, width: right - left, height: bottom - top };
 }
 
+function viewportFor(page: PdfjsPage, scale: number, rotation: number): PageViewport {
+  return page.getViewport({ scale, rotation: page.rotate + rotation });
+}
+
 /** The zoom that fits the widest page (fit-width) or the whole page (fit-page). */
 function fittedZoom(
   pages: PdfjsPage[],
+  rotation: number,
   mode: 'fit-page' | 'fit-width',
   clientWidth: number,
   clientHeight: number,
@@ -54,7 +60,7 @@ function fittedZoom(
   let widest = 0;
   let tallest = 0;
   for (const page of pages) {
-    const { width, height } = page.getViewport({ scale: 1 });
+    const { width, height } = viewportFor(page, 1, rotation);
     widest = Math.max(widest, width);
     tallest = Math.max(tallest, height);
   }
@@ -66,6 +72,9 @@ function fittedZoom(
 export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
   const zoom = useEditorStore((s) => s.zoom);
   const zoomMode = useEditorStore((s) => s.zoomMode);
+  const layoutMode = useEditorStore((s) => s.layoutMode);
+  const rotation = useEditorStore((s) => s.viewRotation);
+  const currentPage = useEditorStore((s) => s.currentPage);
   const scrollTo = useEditorStore((s) => s.scrollTo);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PdfjsPage[]>([]);
@@ -89,18 +98,20 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     if (zoomMode === 'custom') return;
     const el = scrollRef.current;
     if (!el) return;
-    const fitted = fittedZoom(pages, zoomMode, el.clientWidth, el.clientHeight);
+    const subject = layoutMode === 'single' ? pages.filter((_, i) => i === currentPage) : pages;
+    const fitted = fittedZoom(subject, rotation, zoomMode, el.clientWidth, el.clientHeight);
     if (fitted !== undefined) actions.applyFittedZoom(fitted);
-  }, [pages, zoomMode, scroll.width, scroll.height]);
+  }, [pages, zoomMode, rotation, layoutMode, currentPage, scroll.width, scroll.height]);
 
-  // Lay pages out in a vertical stack, centred on the widest page.
+  // Lay pages out in a vertical stack (or just the current one), centred on the widest.
   const layout = useMemo(() => {
+    const shown = layoutMode === 'single' ? pages.filter((_, i) => i === currentPage) : pages;
     let top = PAGE_GAP;
     let maxWidth = 0;
-    const items: PageLayout[] = pages.map((page, index) => {
-      const viewport = page.getViewport({ scale: zoom });
+    const items: PageLayout[] = shown.map((page) => {
+      const viewport = viewportFor(page, zoom, rotation);
       const item = {
-        index,
+        index: pages.indexOf(page),
         top,
         left: 0,
         width: viewport.width,
@@ -114,7 +125,7 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     });
     for (const item of items) item.left = (maxWidth - item.width) / 2 + PAGE_GAP;
     return { items, width: maxWidth + PAGE_GAP * 2, height: top };
-  }, [pages, zoom]);
+  }, [pages, zoom, rotation, layoutMode, currentPage]);
 
   const updateScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -146,9 +157,9 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     };
   }, [updateScroll]);
 
-  // Current page: the one containing the point a third of the way down the viewport.
+  // Continuous mode: the current page is the one a third of the way down the viewport.
   useEffect(() => {
-    if (layout.items.length === 0) return;
+    if (layoutMode !== 'continuous' || layout.items.length === 0) return;
     const probe = scroll.top + scroll.height / 3;
     let current = layout.items[0]!.index;
     for (const item of layout.items) {
@@ -156,16 +167,21 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
       else break;
     }
     actions.setCurrentPage(current);
-  }, [layout, scroll.top, scroll.height]);
+  }, [layout, layoutMode, scroll.top, scroll.height]);
 
-  // Programmatic navigation (page input, PageUp/Down, Home/End).
+  // Programmatic navigation (page input, PageUp/Down, Home/End, thumbnails).
   useEffect(() => {
     if (!scrollTo) return;
     const el = scrollRef.current;
-    const item = layout.items[scrollTo.page];
-    if (el && item) el.scrollTo({ top: Math.max(0, item.top - PAGE_GAP), behavior: 'auto' });
+    if (layoutMode === 'single') {
+      actions.setCurrentPage(scrollTo.page);
+      el?.scrollTo({ top: 0 });
+    } else {
+      const item = layout.items[scrollTo.page];
+      if (el && item) el.scrollTo({ top: Math.max(0, item.top - PAGE_GAP), behavior: 'auto' });
+    }
     actions.clearScrollRequest();
-  }, [scrollTo, layout]);
+  }, [scrollTo, layout, layoutMode]);
 
   // Ctrl+wheel zooms around the cursor.
   useEffect(() => {
@@ -199,7 +215,7 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
   );
 
   return (
-    <div className="viewer" ref={scrollRef} data-testid="viewer">
+    <div className="viewer" ref={scrollRef} data-testid="viewer" data-layout={layoutMode}>
       <div className="viewer-inner" style={{ width: layout.width, height: layout.height }}>
         {layout.items.map((item) => {
           const pageBox = {
@@ -220,7 +236,7 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
                 <PageTiles
                   page={item.page}
                   viewport={item.viewport}
-                  zoom={zoom}
+                  cacheKey={`${zoom}:${rotation}`}
                   visible={{
                     left: region.left - item.left,
                     top: region.top - item.top,
@@ -256,27 +272,28 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
 interface PageTilesProps {
   page: PdfjsPage;
   viewport: PageViewport;
-  zoom: number;
+  /** Anything that invalidates every tile: zoom and rotation. */
+  cacheKey: string;
   visible: ScrollBox;
 }
 
 /** Renders the tiles of one page that intersect `visible`, caching canvases per zoom. */
-function PageTiles({ page, viewport, zoom, visible }: PageTilesProps) {
+function PageTiles({ page, viewport, cacheKey, visible }: PageTilesProps) {
   const dpr = window.devicePixelRatio || 1;
   const tiles = useMemo(() => tilesFor(viewport.width, viewport.height, dpr), [viewport, dpr]);
   const cache = useRef(new Map<string, HTMLCanvasElement>());
-  const cacheKey = useRef<{ zoom: number; page: PdfjsPage }>({ zoom, page });
+  const cacheKeyRef = useRef<{ key: string; page: PdfjsPage }>({ key: cacheKey, page });
   const hostRef = useRef<HTMLDivElement>(null);
   const inflight = useRef(new Set<string>());
   const failures = useRef(new Map<string, number>());
   const [, force] = useState(0);
 
-  // A new zoom or a new page proxy (the document was re-opened) invalidates every tile.
-  if (cacheKey.current.zoom !== zoom || cacheKey.current.page !== page) {
+  // A new zoom/rotation or a new page proxy (the document was re-opened) invalidates every tile.
+  if (cacheKeyRef.current.key !== cacheKey || cacheKeyRef.current.page !== page) {
     cache.current.clear();
     inflight.current.clear();
     failures.current.clear();
-    cacheKey.current = { zoom, page };
+    cacheKeyRef.current = { key: cacheKey, page };
   }
 
   const needed = tiles.filter((t) =>

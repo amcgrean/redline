@@ -245,3 +245,51 @@ body {
   cursor: pointer;
   font: inherit;
 }
+
+/* Thumbnails panel and the main split (Phase 1 PR 3). */
+.main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.main .viewer {
+  flex: 1;
+}
+.thumbnails {
+  width: 168px;
+  overflow-y: auto;
+  background: #ddd;
+  border-right: 1px solid #bbb;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.thumb.current {
+  border-color: #d32f2f;
+  background: #fff;
+}
+.thumb-canvas {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+.thumb-canvas canvas {
+  display: block;
+}
+.thumb-label {
+  font-size: 11px;
+  color: #444;
+}

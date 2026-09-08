@@ -5,8 +5,9 @@
 
 import { useCallback, useEffect, useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { Viewer } from './Viewer';
+import { Thumbnails } from './Thumbnails';
 import { Recents } from './Recents';
-import { actions, useEditor, type Tool, type ZoomMode } from './store';
+import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
 import {
   handleFromDrop,
   pickFileHandle,
@@ -141,6 +142,8 @@ export function App() {
     redoLabel,
     documents,
     activeId,
+    layoutMode,
+    showThumbnails,
   } = state;
 
   useEffect(() => {
@@ -359,6 +362,45 @@ export function App() {
           ›
         </button>
         <span className="sep" />
+        <select
+          value={layoutMode}
+          disabled={!hasDoc}
+          onChange={(e) => actions.setLayoutMode(e.target.value as LayoutMode)}
+          aria-label="Page layout"
+        >
+          <option value="continuous">Continuous</option>
+          <option value="single">Single page</option>
+        </select>
+        <button
+          type="button"
+          disabled={!hasDoc}
+          onClick={() => actions.rotateView(-90)}
+          aria-label="Rotate view left"
+          title="Rotate view 90° counter-clockwise (view only)"
+        >
+          ⟲
+        </button>
+        <button
+          type="button"
+          disabled={!hasDoc}
+          onClick={() => actions.rotateView(90)}
+          aria-label="Rotate view right"
+          title="Rotate view 90° clockwise (view only)"
+        >
+          ⟳
+        </button>
+        <button
+          type="button"
+          disabled={!hasDoc}
+          className={showThumbnails ? 'active' : ''}
+          onClick={() => actions.toggleThumbnails()}
+          aria-label="Toggle thumbnails"
+          aria-pressed={showThumbnails}
+          title="Show page thumbnails"
+        >
+          Pages
+        </button>
+        <span className="sep" />
         <button
           type="button"
           disabled={!hasDoc || !dirty}
@@ -429,7 +471,10 @@ export function App() {
         )}
       </div>
       {doc && pdfjs ? (
-        <Viewer key={pdfjs.doc.fingerprints[0] ?? activeId} pdfjs={pdfjs.doc} />
+        <div className="main">
+          {showThumbnails && <Thumbnails key={`thumbs-${activeId}`} pdfjs={pdfjs.doc} />}
+          <Viewer key={pdfjs.doc.fingerprints[0] ?? activeId} pdfjs={pdfjs.doc} />
+        </div>
       ) : (
         <div className="empty">
           <div className={`dropzone${over ? ' over' : ''}`}>Drop a PDF here</div>

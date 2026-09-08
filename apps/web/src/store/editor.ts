@@ -33,6 +33,7 @@ import { addAreaCommand, addLengthCommand, calibrateCommand, moveCommand } from 
 export type Tool = 'select' | 'calibrate' | 'length' | 'area';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
+export type LayoutMode = 'continuous' | 'single';
 
 export interface DocumentTab {
   id: string;
@@ -50,6 +51,10 @@ export interface EditorUiState {
   selectedId?: string;
   zoom: number;
   zoomMode: ZoomMode;
+  layoutMode: LayoutMode;
+  /** View-only rotation in degrees (0/90/180/270); never written to the file. */
+  viewRotation: number;
+  showThumbnails: boolean;
   /** 0-based page the viewer considers current (tracks scrolling). */
   currentPage: number;
   /** Set by `goToPage`; the viewer scrolls there and clears it. */
@@ -77,6 +82,9 @@ export const useEditorStore = create<EditorUiState>()(
     tool: 'select',
     zoom: 0.35,
     zoomMode: 'fit-width',
+    layoutMode: 'continuous',
+    viewRotation: 0,
+    showThumbnails: false,
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -218,6 +226,25 @@ export const actions = {
   applyFittedZoom(zoom: number): void {
     set((s) => {
       if (s.zoomMode !== 'custom') s.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+    });
+  },
+
+  setLayoutMode(mode: LayoutMode): void {
+    set((s) => {
+      s.layoutMode = mode;
+    });
+  },
+
+  /** Rotate the view by ±90°. Only the view; page /Rotate is untouched. */
+  rotateView(delta: 90 | -90): void {
+    set((s) => {
+      s.viewRotation = (((s.viewRotation + delta) % 360) + 360) % 360;
+    });
+  },
+
+  toggleThumbnails(show?: boolean): void {
+    set((s) => {
+      s.showThumbnails = show ?? !s.showThumbnails;
     });
   },
 
