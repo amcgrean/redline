@@ -52,3 +52,8 @@ for (const name of ['Path2D', 'DOMMatrix', 'ImageData'] as const) {
     g[name] = (napiCanvas as unknown as Record<string, unknown>)[name];
   }
 }
+
+// Dictionary snapshots contain `/CreationDate` and `/M`, which `pdfDate` renders in the local
+// timezone. Pin the offset to US Central Daylight Time (UTC-5, what Aaron's PC and the
+// checked-in snapshots use) so the same snapshot passes on the UTC CI runner.
+Date.prototype.getTimezoneOffset = () => 300;
