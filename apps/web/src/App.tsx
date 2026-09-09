@@ -49,6 +49,11 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
     label: 'Rect Area',
     hint: 'Click two opposite corners of the rectangle.',
   },
+  {
+    id: 'count',
+    label: 'Count (C)',
+    hint: 'Click each item to count it. Re-select the tool to start a new group.',
+  },
 ];
 
 async function openFile(file: File, handle?: FileHandleLike): Promise<void> {
@@ -143,7 +148,13 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
 
   if (ctrl || event.altKey) return;
-  const plain: Record<string, Tool> = { v: 'select', x: 'calibrate', m: 'length', a: 'area' };
+  const plain: Record<string, Tool> = {
+    v: 'select',
+    x: 'calibrate',
+    m: 'length',
+    a: 'area',
+    c: 'count',
+  };
   const shifted: Record<string, Tool> = { m: 'polylength', a: 'perimeter' };
   const next = event.shiftKey ? shifted[key] : plain[key];
   if (next) actions.setTool(next);

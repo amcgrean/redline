@@ -11,7 +11,7 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { Markup, PageScale, Point, Scale, UnitFormat } from '@redline/pdf-core';
-import { openDocument, saveIncremental } from '@redline/pdf-core';
+import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
 import { rememberRecent, type AutosaveEntry } from '../db';
@@ -37,6 +37,7 @@ import {
 } from './session';
 import {
   addAreaCommand,
+  addCountCommand,
   addLengthCommand,
   addPolylineCommand,
   calibrateCommand,
@@ -46,7 +47,15 @@ import type { FindHit } from '../text/textIndex';
 import { printDocument } from '../print';
 
 export type Tool =
-  'select' | 'text' | 'calibrate' | 'length' | 'polylength' | 'perimeter' | 'area' | 'rectarea';
+  | 'select'
+  | 'text'
+  | 'calibrate'
+  | 'length'
+  | 'polylength'
+  | 'perimeter'
+  | 'area'
+  | 'rectarea'
+  | 'count';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -77,6 +86,8 @@ export interface EditorUiState {
   currentPage: number;
   /** Set by `goToPage`; the viewer scrolls there and clears it. */
   scrollTo?: { page: number; nonce: number };
+  /** The count group in progress while the Count tool is active. */
+  countGroup?: string;
   /** Bumps on every document mutation so subscribers re-render. */
   version: number;
   dirty: boolean;
@@ -243,7 +254,25 @@ export const actions = {
     set((s) => {
       s.tool = tool;
       s.selectedId = undefined;
+      // Every activation of the Count tool starts a fresh group.
+      s.countGroup = tool === 'count' ? generateNM() : undefined;
     });
+  },
+
+  /** Add one count symbol to the group in progress and report the group's total. */
+  addCount(pageIndex: number, center: Point): Markup | undefined {
+    const { doc, history } = requireSession();
+    const state = useEditorStore.getState();
+    const group = state.countGroup ?? generateNM();
+    const command = addCountCommand(doc, pageIndex, center, {
+      subject: 'Count',
+      author: state.author,
+      group,
+    });
+    history.run(command);
+    const total = doc.markups.filter((m) => countGroupOf(m) === group).length;
+    bump({ countGroup: group, selectedId: command.id, status: `Count ${total}` });
+    return command.markup;
   },
 
   select(id: string | undefined): void {

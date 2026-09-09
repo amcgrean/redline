@@ -33,19 +33,30 @@ export {
   addLengthMeasurement,
   addAreaMeasurement,
   addPolylineMeasurement,
+  addCountMarkup,
+  countGroupOf,
   moveMarkup,
   captionFor,
   DEFAULT_LENGTH_STYLE,
   DEFAULT_AREA_STYLE,
   DEFAULT_POLYLINE_STYLE,
+  DEFAULT_COUNT_STYLE,
 } from './annots/write.js';
-export type { MeasurementOptions, MeasurementStyle, PolylineOptions } from './annots/write.js';
+export type {
+  MeasurementOptions,
+  MeasurementStyle,
+  PolylineOptions,
+  CountOptions,
+  CountStyle,
+  CountAttrs,
+} from './annots/write.js';
 export { OWNED_KEYS, MUST_NOT_CHANGE_KEYS, isOwnedKey } from './annots/ownership.js';
 export { parseAnnotation, geometryBounds } from './annots/parse.js';
 export {
   buildLineAppearance,
   buildPolygonAppearance,
   buildPolylineAppearance,
+  buildCircleAppearance,
 } from './annots/ap/measurement.js';
 export { buildFormXObject } from './annots/ap/form.js';
 export { pdfDate, parsePdfDate } from './annots/dict.js';

@@ -364,5 +364,43 @@ export function buildPolylineAppearance(spec: PolylineAppearanceSpec): Appearanc
   };
 }
 
+export interface CircleAppearanceSpec {
+  center: Point;
+  radius: number;
+  stroke: RGB;
+  fill?: RGB;
+  width: number;
+  opacity: number;
+  fillOpacity: number;
+}
+
+/** A filled/stroked circle from four Bezier arcs — the count symbol and `/Circle` markups. */
+export function buildCircleAppearance(spec: CircleAppearanceSpec): AppearanceResult {
+  const builder = new ContentBuilder();
+  const { center: c, radius: r } = spec;
+  const k = r * 0.5523;
+
+  builder.save();
+  if (spec.opacity < 1 || spec.fillOpacity < 1) builder.extGState(ALPHA_GS);
+  builder.strokeColor(spec.stroke).lineWidth(spec.width);
+  if (spec.fill) builder.fillColor(spec.fill);
+  builder
+    .moveTo(c.x + r, c.y)
+    .push(`${fmt(c.x + r)} ${fmt(c.y + k)} ${fmt(c.x + k)} ${fmt(c.y + r)} ${fmt(c.x)} ${fmt(c.y + r)} c`)
+    .push(`${fmt(c.x - k)} ${fmt(c.y + r)} ${fmt(c.x - r)} ${fmt(c.y + k)} ${fmt(c.x - r)} ${fmt(c.y)} c`)
+    .push(`${fmt(c.x - r)} ${fmt(c.y - k)} ${fmt(c.x - k)} ${fmt(c.y - r)} ${fmt(c.x)} ${fmt(c.y - r)} c`)
+    .push(`${fmt(c.x + k)} ${fmt(c.y - r)} ${fmt(c.x + r)} ${fmt(c.y - k)} ${fmt(c.x + r)} ${fmt(c.y)} c`)
+    .closePath()
+    .push(spec.fill ? 'B' : 'S');
+  builder.restore();
+
+  const pad = Math.max(spec.width, 1);
+  return {
+    content: builder.toString(),
+    bounds: [c.x - r - pad, c.y - r - pad, c.x + r + pad, c.y + r + pad],
+    withFont: false,
+  };
+}
+
 /** Grow `rect` so it contains `other`. Re-exported for callers building `/Rect`. */
 export { unionRect };

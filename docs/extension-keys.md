@@ -1,11 +1,17 @@
 # Extension keys
 
-Redline's own keys are limited to two (CLAUDE.md). Neither is written by the POC yet.
+Redline's own keys are limited to two (CLAUDE.md). Both are written by the Count tool (Phase 2 PR 7); everything else Redline writes is a standard ISO 32000 key.
 
 | Key        | Where      | Type          | Meaning                                           |
 | ---------- | ---------- | ------------- | ------------------------------------------------- |
 | `/RLTool`  | annotation | string        | id of the tool chest tool that created the markup |
 | `/RLAttrs` | annotation | string (JSON) | custom attribute values for formula columns       |
+
+## Values in use
+
+| `/RLTool` | `/RLAttrs`                           | Markup                                                                                                                                                                                                                                                       |
+| --------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `count`   | `{"count":1,"group":"<16 letters>"}` | One count symbol: a `/Circle` with its own `/AP`, `/Subj` = what is counted. Every symbol of one count shares `group`; the total is the number of symbols. Revu/Acrobat see N plain circle markups under the subject (PLAN §7: no Bluebeam-private count intent until verified). |
 
 ## Bluebeam keys Redline writes for compatibility
 

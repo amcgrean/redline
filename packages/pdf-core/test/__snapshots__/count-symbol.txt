@@ -1,0 +1,56 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 493 593 507 607 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /ExtGState <<
+          /GSa <<
+            /CA 1
+            /Type /ExtGState
+            /ca 0.6
+          >>
+        >>
+        /ProcSet [ /PDF ]
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | /GSa gs
+      | 0.83 0.18 0.18 RG
+      | 1 w
+      | 0.83 0.18 0.18 rg
+      | 506 600 m
+      | 506 603.3138 503.3138 606 500 606 c
+      | 496.6862 606 494 603.3138 494 600 c
+      | 494 596.6862 496.6862 594 500 594 c
+      | 503.3138 594 506 596.6862 506 600 c
+      | h
+      | B
+      | Q
+  >>
+  /BS <<
+    /S /S
+    /Type /Border
+    /W 1
+  >>
+  /C [ 0.83 0.18 0.18 ]
+  /CA 1
+  /Contents ()
+  /CreationDate (D:20260908101500-05'00')
+  /F 4
+  /IC [ 0.83 0.18 0.18 ]
+  /M (D:20260908101500-05'00')
+  /NM (COUNTONEABCDEFGH)
+  /P ref(3)
+  /RLAttrs ({"count":1,"group":"COUNTGROUPABCDEF"})
+  /RLTool (count)
+  /Rect [ 493 593 507 607 ]
+  /Subj (Studs)
+  /Subtype /Circle
+  /T (Aaron McGrane)
+  /Type /Annot
+>>

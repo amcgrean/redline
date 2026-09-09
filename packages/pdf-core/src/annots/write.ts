@@ -19,6 +19,7 @@ import { isPlaceholderId, requireMarkup } from '../document/open.js';
 import { annotsArrayForWrite, markChanged } from '../document/save.js';
 import { buildFormXObject, setAppearance } from './ap/form.js';
 import {
+  buildCircleAppearance,
   buildLineAppearance,
   buildPolygonAppearance,
   buildPolylineAppearance,
@@ -44,6 +45,26 @@ export const DEFAULT_POLYLINE_STYLE: MeasurementStyle = {
   lineEnds: ['None', 'None'],
   captionSize: 10,
 };
+
+/** Count symbol: a small filled disc in points, independent of the page scale. */
+export const DEFAULT_COUNT_STYLE: CountStyle = {
+  stroke: { r: 0.83, g: 0.18, b: 0.18 },
+  fill: { r: 0.83, g: 0.18, b: 0.18 },
+  fillOpacity: 0.6,
+  width: 1,
+  opacity: 1,
+  radius: 6,
+};
+
+export interface CountStyle {
+  stroke: RGB;
+  fill: RGB;
+  fillOpacity: number;
+  width: number;
+  opacity: number;
+  /** Symbol radius in points. */
+  radius: number;
+}
 
 export const DEFAULT_AREA_STYLE: MeasurementStyle = {
   stroke: { r: 0.08, g: 0.4, b: 0.75 },
@@ -483,6 +504,114 @@ export function addPolylineMeasurement(
   refreshMeasurement(doc, markup, style);
   doc.markups.push(markup);
   return markup;
+}
+
+export interface CountOptions {
+  /** `/Subj` — what is being counted; the Markups List groups rows by it. */
+  subject: string;
+  author: string;
+  /**
+   * Count group id shared by every symbol of one count. Stored in `/RLAttrs` so Redline
+   * can total and delete the set; other viewers see N plain `/Circle` markups with the
+   * same subject (PLAN §7: standard markups + /RLAttrs until Revu's count form is verified).
+   */
+  group: string;
+  style?: Partial<CountStyle>;
+  now?: Date;
+  nm?: string;
+}
+
+/** Attributes Redline stores on a count symbol in `/RLAttrs` (docs/extension-keys.md). */
+export interface CountAttrs {
+  count: 1;
+  group: string;
+}
+
+/**
+ * Write one count symbol: a `/Circle` annotation with a generated `/AP`, `/RLTool (count)`
+ * and `/RLAttrs`. No `/Measure` — a count is not a measurement in ISO 32000 terms.
+ */
+export function addCountMarkup(
+  doc: RedlineDocument,
+  pageIndex: number,
+  center: Point,
+  options: CountOptions,
+): Markup {
+  const context = doc.pdfDoc.context;
+  const page = doc.pdfDoc.getPage(pageIndex);
+  const style: CountStyle = { ...DEFAULT_COUNT_STYLE, ...options.style };
+  const now = options.now ?? new Date();
+  const nm = options.nm ?? generateUniqueNM(doc.usedNM);
+  if (options.nm) doc.usedNM.add(options.nm);
+
+  const annot = context.obj({}) as PDFDict;
+  writeCommonKeys(
+    context,
+    annot,
+    page.ref,
+    nm,
+    { subject: options.subject, author: options.author },
+    { stroke: style.stroke, fill: style.fill, opacity: style.opacity, width: style.width },
+    now,
+  );
+  annot.set(PDFName.of('Subtype'), PDFName.of('Circle'));
+  annot.set(PDFName.of('Contents'), PDFString.of(''));
+  annot.set(PDFName.of('RLTool'), PDFString.of('count'));
+  const attrs: CountAttrs = { count: 1, group: options.group };
+  annot.set(PDFName.of('RLAttrs'), PDFString.of(JSON.stringify(attrs)));
+
+  const appearance = buildCircleAppearance({
+    center,
+    radius: style.radius,
+    stroke: style.stroke,
+    fill: style.fill,
+    width: style.width,
+    opacity: style.opacity,
+    fillOpacity: style.fillOpacity,
+  });
+  const rect = attachAppearance(context, annot, appearance, {
+    stroke: style.opacity,
+    fill: style.fillOpacity,
+  });
+
+  const ref = context.register(annot);
+  annotsArrayForWrite(doc, pageIndex).push(ref);
+
+  const markup: Markup = {
+    id: nm,
+    pageIndex,
+    subtype: 'Circle',
+    rawSubtype: 'Circle',
+    geometry: { kind: 'rect', rect },
+    rect,
+    style: {
+      stroke: style.stroke,
+      fill: style.fill,
+      fillOpacity: style.fillOpacity,
+      opacity: style.opacity,
+      width: style.width,
+    },
+    text: { contents: '', subject: options.subject, author: options.author, created: now, modified: now },
+    attrs: { count: 1, group: options.group },
+    relations: {},
+    flags: { locked: false, hidden: false, print: true },
+    raw: annot,
+    ref,
+    render: 'native',
+  };
+  doc.markups.push(markup);
+  return markup;
+}
+
+/** The count group a markup belongs to, if it is a Redline count symbol. */
+export function countGroupOf(markup: Markup): string | undefined {
+  if (lookupText(markup.raw, 'RLTool') !== 'count') return undefined;
+  try {
+    const attrs = JSON.parse(lookupText(markup.raw, 'RLAttrs') ?? '{}') as Partial<CountAttrs>;
+    return typeof attrs.group === 'string' ? attrs.group : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The caption text for a measurement — the single formatter is the only source. */

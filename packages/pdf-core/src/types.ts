@@ -113,6 +113,8 @@ export interface Markup {
   style: MarkupStyle;
   text?: MarkupText;
   measure?: MarkupMeasure;
+  /** Custom attributes from `/RLAttrs` (tool attributes, count groups). */
+  attrs?: Record<string, string | number | boolean>;
   relations: { groupParent?: string; replyTo?: string; layer?: boolean };
   flags: { locked: boolean; hidden: boolean; print: boolean };
   /** The live dictionary. Unknown keys live here and are written back verbatim. */

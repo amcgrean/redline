@@ -138,6 +138,10 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       }
       return;
     }
+    if (tool === 'count') {
+      actions.addCount(pageIndex, p);
+      return;
+    }
     if (tool === 'rectarea') {
       if (!doc?.pageScales.get(pageIndex)) {
         actions.setStatus('Calibrate this page first');

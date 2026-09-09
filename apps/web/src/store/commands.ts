@@ -4,6 +4,7 @@
  */
 
 import type {
+  CountOptions,
   Markup,
   MeasurementOptions,
   PageScale,
@@ -15,6 +16,7 @@ import type {
 } from '@redline/pdf-core';
 import {
   addAreaMeasurement,
+  addCountMarkup,
   addLengthMeasurement,
   addPolylineMeasurement,
   clearPageScale,
@@ -120,6 +122,19 @@ export function addPolylineCommand(
   return addCommand(
     options.closed ? 'Perimeter' : 'Polylength',
     (nm) => addPolylineMeasurement(doc, pageIndex, vertices, nm ? { ...options, nm } : options),
+    doc,
+  );
+}
+
+export function addCountCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  center: Point,
+  options: CountOptions,
+): AddCommand {
+  return addCommand(
+    'Count',
+    (nm) => addCountMarkup(doc, pageIndex, center, nm ? { ...options, nm } : options),
     doc,
   );
 }

@@ -198,6 +198,19 @@ export function parseAnnotation(ref: PDFRef, dict: PDFDict, pageIndex: number, n
   const intent = lookupName(dict, 'IT');
   if (intent) markup.intent = intent;
 
+  // Redline's own extension key: JSON attributes (docs/extension-keys.md).
+  const attrsJson = lookupText(dict, 'RLAttrs');
+  if (attrsJson) {
+    try {
+      const parsed = JSON.parse(attrsJson) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        markup.attrs = parsed as Record<string, string | number | boolean>;
+      }
+    } catch {
+      // Malformed JSON is preserved in `raw` and simply not surfaced.
+    }
+  }
+
   const contents = lookupText(dict, 'Contents');
   const subject = lookupText(dict, 'Subj');
   const author = lookupText(dict, 'T');
