@@ -8,6 +8,7 @@ import type {
   MeasurementOptions,
   PageScale,
   Point,
+  PolylineOptions,
   RedlineDocument,
   Scale,
   UnitFormat,
@@ -15,6 +16,7 @@ import type {
 import {
   addAreaMeasurement,
   addLengthMeasurement,
+  addPolylineMeasurement,
   clearPageScale,
   deleteMarkup,
   moveMarkup,
@@ -105,6 +107,19 @@ export function addAreaCommand(
   return addCommand(
     'Area',
     (nm) => addAreaMeasurement(doc, pageIndex, vertices, nm ? { ...options, nm } : options),
+    doc,
+  );
+}
+
+export function addPolylineCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  vertices: Point[],
+  options: PolylineOptions,
+): AddCommand {
+  return addCommand(
+    options.closed ? 'Perimeter' : 'Polylength',
+    (nm) => addPolylineMeasurement(doc, pageIndex, vertices, nm ? { ...options, nm } : options),
     doc,
   );
 }

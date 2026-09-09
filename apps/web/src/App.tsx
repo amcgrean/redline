@@ -30,9 +30,24 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
   },
   { id: 'length', label: 'Length (M)', hint: 'Click the two ends of the run.' },
   {
+    id: 'polylength',
+    label: 'Polylength (Shift+M)',
+    hint: 'Click each turn of the run; double-click or press Enter to finish. Esc cancels.',
+  },
+  {
     id: 'area',
     label: 'Area (A)',
     hint: 'Click each corner; click the first corner again, double-click, or press Enter to finish. Esc cancels.',
+  },
+  {
+    id: 'perimeter',
+    label: 'Perimeter (Shift+A)',
+    hint: 'Click each corner; click the first corner again, double-click, or press Enter to close the loop.',
+  },
+  {
+    id: 'rectarea',
+    label: 'Rect Area',
+    hint: 'Click two opposite corners of the rectangle.',
   },
 ];
 
@@ -128,8 +143,9 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
 
   if (ctrl || event.altKey) return;
-  const map: Record<string, Tool> = { v: 'select', x: 'calibrate', m: 'length', a: 'area' };
-  const next = map[key];
+  const plain: Record<string, Tool> = { v: 'select', x: 'calibrate', m: 'length', a: 'area' };
+  const shifted: Record<string, Tool> = { m: 'polylength', a: 'perimeter' };
+  const next = event.shiftKey ? shifted[key] : plain[key];
   if (next) actions.setTool(next);
 }
 

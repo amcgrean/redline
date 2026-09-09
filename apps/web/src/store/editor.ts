@@ -35,11 +35,18 @@ import {
   setActiveSession,
   type Session,
 } from './session';
-import { addAreaCommand, addLengthCommand, calibrateCommand, moveCommand } from './commands';
+import {
+  addAreaCommand,
+  addLengthCommand,
+  addPolylineCommand,
+  calibrateCommand,
+  moveCommand,
+} from './commands';
 import type { FindHit } from '../text/textIndex';
 import { printDocument } from '../print';
 
-export type Tool = 'select' | 'text' | 'calibrate' | 'length' | 'area';
+export type Tool =
+  'select' | 'text' | 'calibrate' | 'length' | 'polylength' | 'perimeter' | 'area' | 'rectarea';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -435,6 +442,22 @@ export const actions = {
     });
     history.run(command);
     bump({ selectedId: command.id, status: `Area ${command.markup?.text?.contents ?? ''}` });
+    return command.markup;
+  },
+
+  /** Polylength (open) or perimeter (closed) through the given vertices. */
+  addPolyline(pageIndex: number, vertices: Point[], closed: boolean): Markup | undefined {
+    const { doc, history } = requireSession();
+    const command = addPolylineCommand(doc, pageIndex, vertices, {
+      subject: closed ? 'Perimeter' : 'Polylength',
+      author: useEditorStore.getState().author,
+      closed,
+    });
+    history.run(command);
+    bump({
+      selectedId: command.id,
+      status: `${command.label} ${command.markup?.text?.contents ?? ''}`,
+    });
     return command.markup;
   },
 

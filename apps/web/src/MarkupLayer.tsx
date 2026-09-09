@@ -9,7 +9,14 @@ import { Stage, Layer, Group, Line, Rect, Ellipse, Text, Image as KImage } from 
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Markup, Point, Rect as PdfRect, RGB } from '@redline/pdf-core';
-import { geometryBounds, formatLength, worldUnitsPerPoint } from '@redline/pdf-core';
+import {
+  geometryBounds,
+  formatLength,
+  formatArea,
+  polylineLength,
+  polygonArea,
+  worldUnitsPerPoint,
+} from '@redline/pdf-core';
 import type { PageViewport } from './pdfjs';
 import { actions, useEditor } from './store';
 import { renderApBitmap, type ApBitmap } from './apBitmap';
@@ -61,14 +68,17 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
   const pointsPx = (points: readonly Point[]): number[] => points.flatMap(toPx);
 
-  // Escape cancels a draft; Enter finishes an area.
+  const isPolyTool = tool === 'area' || tool === 'polylength' || tool === 'perimeter';
+  const closesDraft = tool === 'area' || tool === 'perimeter' || tool === 'rectarea';
+
+  // Escape cancels a draft; Enter finishes a multi-vertex tool.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setDraft([]);
         setCalibrating(undefined);
       }
-      if (event.key === 'Enter' && tool === 'area') finishArea(draftRef.current);
+      if (event.key === 'Enter' && isPolyTool) finishPoly(draftRef.current);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -83,10 +93,14 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     return toPdf(pos.x + visible.left, pos.y + visible.top);
   };
 
-  const finishArea = (points: Point[]) => {
-    if (points.length < 3) return;
+  /** Complete the multi-vertex tool in progress, if it has enough vertices. */
+  const finishPoly = (points: Point[]) => {
+    const minimum = tool === 'polylength' ? 2 : 3;
+    if (points.length < minimum) return;
     setDraft([]);
-    actions.addArea(pageIndex, points);
+    if (tool === 'area') actions.addArea(pageIndex, points);
+    else if (tool === 'perimeter') actions.addPolyline(pageIndex, points, true);
+    else if (tool === 'polylength') actions.addPolyline(pageIndex, points, false);
   };
 
   /** Drop a trailing vertex that repeats the one before it (a double-click's second click). */
@@ -124,16 +138,32 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       }
       return;
     }
-    if (tool === 'area') {
+    if (tool === 'rectarea') {
       if (!doc?.pageScales.get(pageIndex)) {
         actions.setStatus('Calibrate this page first');
         return;
       }
-      if (draft.length >= 3) {
+      if (draft.length === 0) {
+        setDraft([p]);
+        return;
+      }
+      const a = draft[0]!;
+      setDraft([]);
+      if (a.x === p.x || a.y === p.y) return;
+      actions.addArea(pageIndex, [a, { x: p.x, y: a.y }, p, { x: a.x, y: p.y }]);
+      return;
+    }
+    if (isPolyTool) {
+      if (!doc?.pageScales.get(pageIndex)) {
+        actions.setStatus('Calibrate this page first');
+        return;
+      }
+      // Clicking the first vertex again closes an area or perimeter.
+      if (closesDraft && draft.length >= 3) {
         const [fx, fy] = toPx(draft[0]!);
         const [px, py] = toPx(p);
         if (Math.hypot(fx - px, fy - py) < 10) {
-          finishArea(draft);
+          finishPoly(draft);
           return;
         }
       }
@@ -142,9 +172,14 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   const onDblClick = () => {
-    // Read the ref: the click that preceded this event may already have finished the area.
-    const current = withoutRepeatedLast(draftRef.current);
-    if (tool === 'area' && current.length >= 3) finishArea(current);
+    if (!isPolyTool) return;
+    // Konva fires dblclick for ANY two clicks within its window, even at different
+    // positions; only a genuine double-click (second click on top of the first) finishes.
+    // Read the ref: the click that preceded this event may already have updated the draft.
+    const current = draftRef.current;
+    const trimmed = withoutRepeatedLast(current);
+    if (trimmed.length === current.length) return;
+    finishPoly(trimmed);
   };
 
   const onMouseMove = (event: KonvaEventObject<MouseEvent>) => {
@@ -158,16 +193,27 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const pageScale = doc?.pageScales.get(pageIndex);
 
   // Rubber-band preview for the tool in progress.
-  const draftPoints = hover && draft.length ? [...draft, hover] : draft;
-  let draftLabel = '';
-  if (draftPoints.length === 2 && pageScale && (tool === 'length' || tool === 'calibrate')) {
+  let draftPoints = hover && draft.length ? [...draft, hover] : draft;
+  if (tool === 'rectarea' && draftPoints.length === 2) {
     const [a, b] = draftPoints as [Point, Point];
-    const pts = Math.hypot(b.x - a.x, b.y - a.y);
-    draftLabel = formatLength(
-      pts * worldUnitsPerPoint(pageScale.scale),
-      pageScale.units,
-      pageScale.scale.worldUnit,
-    );
+    draftPoints = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }];
+  }
+  let draftLabel = '';
+  if (pageScale && draftPoints.length >= 2) {
+    const perPoint = worldUnitsPerPoint(pageScale.scale);
+    const unit = pageScale.scale.worldUnit;
+    if (tool === 'length' || tool === 'calibrate' || tool === 'polylength') {
+      draftLabel = formatLength(polylineLength(draftPoints) * perPoint, pageScale.units, unit);
+    } else if (tool === 'perimeter') {
+      const loop = [...draftPoints, draftPoints[0]!];
+      draftLabel = formatLength(polylineLength(loop) * perPoint, pageScale.units, unit);
+    } else if ((tool === 'area' || tool === 'rectarea') && draftPoints.length >= 3) {
+      draftLabel = formatArea(
+        polygonArea(draftPoints) * perPoint * perPoint,
+        pageScale.units,
+        unit,
+      );
+    }
   }
 
   return (
@@ -209,8 +255,8 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 stroke={DRAFT_COLOR}
                 strokeWidth={2}
                 dash={[6, 4]}
-                closed={tool === 'area' && draftPoints.length > 2}
-                fill={tool === 'area' ? 'rgba(211,47,47,0.12)' : undefined}
+                closed={closesDraft && draftPoints.length > 2}
+                fill={closesDraft ? 'rgba(211,47,47,0.12)' : undefined}
                 listening={false}
               />
             )}
@@ -228,10 +274,10 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 />
               );
             })}
-            {draftLabel && draftPoints[1] && (
+            {draftLabel && draftPoints[draftPoints.length - 1] && (
               <Text
-                x={toPx(draftPoints[1])[0] + 8}
-                y={toPx(draftPoints[1])[1] - 8}
+                x={toPx(hover ?? draftPoints[draftPoints.length - 1]!)[0] + 8}
+                y={toPx(hover ?? draftPoints[draftPoints.length - 1]!)[1] - 8}
                 text={draftLabel}
                 fontSize={12}
                 fill={DRAFT_COLOR}

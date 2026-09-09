@@ -21,6 +21,7 @@ import { buildFormXObject, setAppearance } from './ap/form.js';
 import {
   buildLineAppearance,
   buildPolygonAppearance,
+  buildPolylineAppearance,
   type AppearanceResult,
 } from './ap/measurement.js';
 
@@ -32,6 +33,15 @@ export const DEFAULT_LENGTH_STYLE: MeasurementStyle = {
   lineEnds: ['ClosedArrow', 'ClosedArrow'],
   leaderLength: 10,
   leaderExtension: 2,
+  captionSize: 10,
+};
+
+/** Polylength / perimeter: the length style without leaders (a polyline has no /LL). */
+export const DEFAULT_POLYLINE_STYLE: MeasurementStyle = {
+  stroke: { r: 0.83, g: 0.18, b: 0.18 },
+  width: 2,
+  opacity: 1,
+  lineEnds: ['None', 'None'],
   captionSize: 10,
 };
 
@@ -191,6 +201,24 @@ function polygonAppearanceFor(
     ...(style.dash && { dash: style.dash }),
     opacity: style.opacity,
     fillOpacity: style.fillOpacity ?? 1,
+    ...(caption && {
+      caption: { text: caption, size: style.captionSize ?? 10, color: style.stroke },
+    }),
+  });
+}
+
+function polylineAppearanceFor(
+  points: Point[],
+  style: MeasurementStyle,
+  caption: string | undefined,
+): AppearanceResult {
+  return buildPolylineAppearance({
+    points,
+    stroke: style.stroke,
+    width: style.width,
+    ...(style.dash && { dash: style.dash }),
+    lineEnds: style.lineEnds ?? ['None', 'None'],
+    opacity: style.opacity,
     ...(caption && {
       caption: { text: caption, size: style.captionSize ?? 10, color: style.stroke },
     }),
@@ -361,6 +389,102 @@ export function addAreaMeasurement(
   return markup;
 }
 
+export interface PolylineOptions extends MeasurementOptions {
+  /**
+   * Perimeter: close the run by repeating the first vertex, so a plain
+   * `/PolyLineDimension` measures the whole loop. This is what Acrobat's perimeter tool
+   * writes (VERIFIED against Acrobat output in the ISO 32000 examples); Revu's own
+   * perimeter representation is ASSUMED compatible until a fixture shows otherwise.
+   */
+  closed?: boolean;
+}
+
+/**
+ * Write a `/PolyLine` + `/IT /PolyLineDimension` polylength (or perimeter) measurement.
+ * Vertices are user space. The page must already have a scale.
+ */
+export function addPolylineMeasurement(
+  doc: RedlineDocument,
+  pageIndex: number,
+  vertices: Point[],
+  options: PolylineOptions,
+): Markup {
+  if (vertices.length < 2) throw new RangeError('A polylength needs at least two vertices');
+  const context = doc.pdfDoc.context;
+  const page = doc.pdfDoc.getPage(pageIndex);
+  const pageScale = requirePageScale(doc, pageIndex);
+  const style: MeasurementStyle = { ...DEFAULT_POLYLINE_STYLE, ...options.style };
+  const now = options.now ?? new Date();
+  const nm = options.nm ?? generateUniqueNM(doc.usedNM);
+  if (options.nm) doc.usedNM.add(options.nm);
+
+  const points = [...vertices];
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  if (options.closed && (first.x !== last.x || first.y !== last.y)) points.push({ ...first });
+
+  const annot = context.obj({}) as PDFDict;
+  writeCommonKeys(context, annot, page.ref, nm, options, style, now);
+  annot.set(PDFName.of('Subtype'), PDFName.of('PolyLine'));
+  annot.set(PDFName.of('IT'), PDFName.of('PolyLineDimension'));
+  annot.set(
+    PDFName.of('Vertices'),
+    numArray(
+      context,
+      points.flatMap((p) => [p.x, p.y]),
+    ),
+  );
+  annot.set(PDFName.of('LE'), lineEndingsArray(context, style.lineEnds ?? ['None', 'None']));
+  annot.set(PDFName.of('Cap'), context.obj(options.caption ?? true));
+  annot.set(
+    PDFName.of('Measure'),
+    context.register(
+      buildMeasureDict(context, { scale: pageScale.scale, format: pageScale.units }),
+    ),
+  );
+
+  const ref = context.register(annot);
+  annotsArrayForWrite(doc, pageIndex).push(ref);
+
+  const markup: Markup = {
+    id: nm,
+    pageIndex,
+    subtype: 'PolyLine',
+    rawSubtype: 'PolyLine',
+    intent: 'PolyLineDimension',
+    geometry: { kind: 'poly', points, closed: false },
+    rect: [0, 0, 0, 0],
+    style: {
+      stroke: style.stroke,
+      opacity: style.opacity,
+      width: style.width,
+      ...(style.dash && { dash: style.dash }),
+      ...(style.lineEnds && { lineEnds: style.lineEnds }),
+    },
+    text: {
+      contents: '',
+      subject: options.subject,
+      author: options.author,
+      created: now,
+      modified: now,
+    },
+    measure: {
+      scale: pageScale.scale,
+      units: pageScale.units,
+      caption: options.caption ?? true,
+      computed: {},
+    },
+    relations: {},
+    flags: { locked: false, hidden: false, print: true },
+    raw: annot,
+    ref,
+    render: 'native',
+  };
+  refreshMeasurement(doc, markup, style);
+  doc.markups.push(markup);
+  return markup;
+}
+
 /** The caption text for a measurement — the single formatter is the only source. */
 export function captionFor(markup: Markup, pageScale: PageScale): string {
   const computed = computeMeasurement(markup, pageScale);
@@ -374,7 +498,12 @@ export function captionFor(markup: Markup, pageScale: PageScale): string {
 
 /** Style values a regenerated AP needs, read back from the live dictionary. */
 function styleFromMarkup(markup: Markup): MeasurementStyle {
-  const base = markup.subtype === 'Polygon' ? DEFAULT_AREA_STYLE : DEFAULT_LENGTH_STYLE;
+  const base =
+    markup.subtype === 'Polygon'
+      ? DEFAULT_AREA_STYLE
+      : markup.subtype === 'PolyLine'
+        ? DEFAULT_POLYLINE_STYLE
+        : DEFAULT_LENGTH_STYLE;
   const raw = markup.raw;
   const ll = raw.lookup(PDFName.of('LL'));
   const lle = raw.lookup(PDFName.of('LLE'));
@@ -423,8 +552,10 @@ function refreshMeasurement(
   let appearance: AppearanceResult;
   if (markup.geometry.kind === 'line') {
     appearance = lineAppearanceFor(markup.geometry.points, style, caption);
-  } else if (markup.geometry.kind === 'poly') {
+  } else if (markup.geometry.kind === 'poly' && markup.geometry.closed) {
     appearance = polygonAppearanceFor(markup.geometry.points, style, caption);
+  } else if (markup.geometry.kind === 'poly') {
+    appearance = polylineAppearanceFor(markup.geometry.points, style, caption);
   } else {
     return;
   }
@@ -539,10 +670,7 @@ export function moveMarkup(
     markup.intent === 'LineDimension' ||
     markup.intent === 'PolygonDimension' ||
     markup.intent === 'PolyLineDimension';
-  if (
-    isMeasurement &&
-    (markup.geometry.kind === 'line' || (markup.geometry.kind === 'poly' && markup.geometry.closed))
-  ) {
+  if (isMeasurement && (markup.geometry.kind === 'line' || markup.geometry.kind === 'poly')) {
     // Regenerating the AP recomputes /Rect from the drawn extents.
     refreshMeasurement(doc, markup, styleFromMarkup(markup), 'move');
   } else {

@@ -1,0 +1,132 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 94 94 826 466 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /Font <<
+          /Helv <<
+            /BaseFont /Helvetica
+            /Encoding /WinAnsiEncoding
+            /Subtype /Type1
+            /Type /Font
+          >>
+        >>
+        /ProcSet [ /PDF /Text ]
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | 0.83 0.18 0.18 RG
+      | 0.83 0.18 0.18 rg
+      | 2 w
+      | 1 J
+      | 1 j
+      | 100 100 m
+      | 820 100 l
+      | 820 460 l
+      | S
+      | 0.83 0.18 0.18 rg
+      | BT
+      | /Helv 10 Tf
+      | 624.485 105 Td
+      | (120'-0") Tj
+      | ET
+      | Q
+  >>
+  /BS <<
+    /S /S
+    /Type /Border
+    /W 2
+  >>
+  /C [ 0.83 0.18 0.18 ]
+  /CA 1
+  /Cap true
+  /Contents (120'-0")
+  /CreationDate (D:20260908101500-05'00')
+  /F 4
+  /IT /PolyLineDimension
+  /LE [ /None /None ]
+  /M (D:20260908101500-05'00')
+  /Measure <<
+    /A [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (sf)
+      >>
+    ]
+    /D [
+      <<
+        /C 1
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS (-)
+        /Type /NumberFormat
+        /U (')
+      >>
+      <<
+        /C 12
+        /D 16
+        /F /F
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (")
+      >>
+    ]
+    /R (0.125 in = 1 ft' in")
+    /Subtype /RL
+    /T [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /PS ()
+        /SS ()
+        /Type /NumberFormat
+        /U (°)
+      >>
+    ]
+    /TargetUnitConversion 0.001157407
+    /Type /Measure
+    /V [
+      <<
+        /C 1
+        /D 1
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (cu ft)
+      >>
+    ]
+    /X [
+      <<
+        /C 0.1111111
+        /D 16
+        /F /F
+        /FD true
+        /SS ()
+        /Type /NumberFormat
+        /U (')
+      >>
+    ]
+  >>
+  /NM (PLNRUNABCDEFGHIJ)
+  /P ref(3)
+  /Rect [ 94 94 826 466 ]
+  /Subj (Base Trim)
+  /Subtype /PolyLine
+  /T (Aaron McGrane)
+  /Type /Annot
+  /Vertices [ 100 100 820 100 820 460 ]
+>>

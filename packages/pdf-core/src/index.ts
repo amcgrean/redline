@@ -32,14 +32,20 @@ export * from './measure/geometry.js';
 export {
   addLengthMeasurement,
   addAreaMeasurement,
+  addPolylineMeasurement,
   moveMarkup,
   captionFor,
   DEFAULT_LENGTH_STYLE,
   DEFAULT_AREA_STYLE,
+  DEFAULT_POLYLINE_STYLE,
 } from './annots/write.js';
-export type { MeasurementOptions, MeasurementStyle } from './annots/write.js';
+export type { MeasurementOptions, MeasurementStyle, PolylineOptions } from './annots/write.js';
 export { OWNED_KEYS, MUST_NOT_CHANGE_KEYS, isOwnedKey } from './annots/ownership.js';
 export { parseAnnotation, geometryBounds } from './annots/parse.js';
-export { buildLineAppearance, buildPolygonAppearance } from './annots/ap/measurement.js';
+export {
+  buildLineAppearance,
+  buildPolygonAppearance,
+  buildPolylineAppearance,
+} from './annots/ap/measurement.js';
 export { buildFormXObject } from './annots/ap/form.js';
 export { pdfDate, parsePdfDate } from './annots/dict.js';

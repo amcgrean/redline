@@ -5,7 +5,13 @@
  */
 
 import type { LineEnding, Point, Rect, RGB } from '../../types.js';
-import { boundsOf, distance, polygonCentroid, unionRect } from '../../measure/geometry.js';
+import {
+  boundsOf,
+  distance,
+  midpointAlong,
+  polygonCentroid,
+  unionRect,
+} from '../../measure/geometry.js';
 import { ContentBuilder, helveticaCapHeight, helveticaWidth } from './content.js';
 import { ALPHA_GS, CAPTION_FONT } from './form.js';
 
@@ -288,6 +294,69 @@ export function buildPolygonAppearance(spec: PolygonAppearanceSpec): AppearanceR
 
   builder.restore();
   const pad = Math.max(spec.width, 1) * 1.5;
+  return {
+    content: builder.toString(),
+    bounds: boundsOf(touched, pad),
+    withFont: Boolean(spec.caption?.text),
+  };
+}
+
+export interface PolylineAppearanceSpec {
+  /** `/Vertices`. A perimeter repeats its first vertex at the end. */
+  points: Point[];
+  stroke: RGB;
+  width: number;
+  dash?: number[];
+  lineEnds: [LineEnding, LineEnding];
+  opacity: number;
+  caption?: CaptionSpec;
+}
+
+/**
+ * Polylength / perimeter appearance: an open stroked run, optional endings on the first
+ * and last vertex, and a caption just above the midpoint of the path.
+ */
+export function buildPolylineAppearance(spec: PolylineAppearanceSpec): AppearanceResult {
+  const builder = new ContentBuilder();
+  const touched: Point[] = [...spec.points];
+
+  builder.save();
+  if (spec.opacity < 1) builder.extGState(ALPHA_GS);
+  builder.strokeColor(spec.stroke).fillColor(spec.stroke).lineWidth(spec.width).roundJoins();
+  if (spec.dash?.length) builder.dash(spec.dash);
+
+  const [first, ...rest] = spec.points;
+  if (first) {
+    builder.moveTo(first.x, first.y);
+    for (const point of rest) builder.lineTo(point.x, point.y);
+    builder.stroke();
+  }
+
+  if (spec.dash?.length) builder.dash([]);
+  const n = spec.points.length;
+  if (n >= 2) {
+    const p0 = spec.points[0]!;
+    const p1 = spec.points[1]!;
+    const pn = spec.points[n - 1]!;
+    const pm = spec.points[n - 2]!;
+    touched.push(
+      ...drawLineEnding(builder, spec.lineEnds[0], p0, unit(p1, p0), spec.width),
+      ...drawLineEnding(builder, spec.lineEnds[1], pn, unit(pm, pn), spec.width),
+    );
+  }
+
+  if (spec.caption && spec.caption.text) {
+    const { text, size, color } = spec.caption;
+    const mid = midpointAlong(spec.points);
+    const textWidth = helveticaWidth(text, size);
+    const x = mid.x - textWidth / 2;
+    const y = mid.y + CAPTION_GAP + spec.width;
+    builder.fillColor(color).text(CAPTION_FONT, size, x, y, text);
+    touched.push({ x, y: y - size * 0.25 }, { x: x + textWidth, y: y + helveticaCapHeight(size) });
+  }
+
+  builder.restore();
+  const pad = Math.max(spec.width, 1) * (ENDING_SCALE / 2 + 1);
   return {
     content: builder.toString(),
     bounds: boundsOf(touched, pad),
