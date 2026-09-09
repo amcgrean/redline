@@ -40,11 +40,11 @@ test('two documents open in tabs; switching and closing work', async ({ page }) 
   await expect(tabs).toHaveCount(2);
   await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('1');
-  await expect(page.getByText('of 3')).toBeVisible();
+  await expect(page.locator('.page-indicator')).toContainText('of 3');
 
   await tabs.nth(0).click();
   await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('of 2')).toBeVisible();
+  await expect(page.locator('.page-indicator')).toContainText('of 2');
 
   // Dirty a document, then closing it asks for confirmation.
   const canvas = page.locator('.page[data-page="1"] canvas').first();
@@ -64,7 +64,7 @@ test('two documents open in tabs; switching and closing work', async ({ page }) 
   await page.getByRole('button', { name: 'Close alpha.pdf' }).click();
   await expect(tabs).toHaveCount(1);
   await expect(tabs.nth(0)).toContainText('beta.pdf');
-  await expect(page.getByText('of 3')).toBeVisible();
+  await expect(page.locator('.page-indicator')).toContainText('of 3');
 
   // Closing the last one returns to the empty state.
   await page.getByRole('button', { name: 'Close beta.pdf' }).click();
