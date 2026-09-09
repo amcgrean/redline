@@ -80,7 +80,9 @@ test('a markup from the file can be deleted from Properties and restored', async
   const list = page.getByTestId('markups-list');
   await list.locator('tbody[data-subject="Rectangle"] tr:not(.group)').first().click();
   await page.keyboard.press('Control+Shift+4');
-  await expect(page.getByText('from the file')).toBeVisible();
+  await expect(
+    page.getByRole('complementary', { name: 'Panel' }).getByText('from the file'),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Delete markup' }).click();
   await expect(status(page)).toHaveText('Delete');
