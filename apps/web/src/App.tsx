@@ -157,6 +157,10 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (event.key === 'Home' && ctrl) return actions.goToPage(0);
   if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
 
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    return actions.deleteMarkups();
+  }
   if (ctrl || event.altKey) return;
   const plain: Record<string, Tool> = {
     v: 'select',

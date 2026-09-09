@@ -28,7 +28,13 @@ describe('addCountMarkup', () => {
       doc,
       0,
       { x: 500, y: 600 },
-      { subject: 'Studs', author: AUTHOR, group: 'COUNTGROUPABCDEF', now: NOW, nm: 'COUNTONEABCDEFGH' },
+      {
+        subject: 'Studs',
+        author: AUTHOR,
+        group: 'COUNTGROUPABCDEF',
+        now: NOW,
+        nm: 'COUNTONEABCDEFGH',
+      },
     );
     expect(markup.subtype).toBe('Circle');
     expect(markup.rect).toEqual([493, 593, 507, 607]);
@@ -87,7 +93,10 @@ describe('addCountMarkup', () => {
       { x: 1, y: 1 },
       { subject: 'x', author: AUTHOR, group: 'G', now: NOW },
     );
-    markup.raw.set(markup.raw.context.obj('RLTool') as never, markup.raw.context.obj('length') as never);
+    markup.raw.set(
+      markup.raw.context.obj('RLTool') as never,
+      markup.raw.context.obj('length') as never,
+    );
     expect(countGroupOf(markup)).toBeUndefined();
   });
 });

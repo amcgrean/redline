@@ -5,7 +5,7 @@ export { generateNM, generateUniqueNM, isValidNM } from './ids.js';
 
 export { openDocument, requireMarkup, isPlaceholderId } from './document/open.js';
 export { saveIncremental, markChanged } from './document/save.js';
-export type { SaveResult } from './document/save.js';
+export type { SaveResult, SaveOptions } from './document/save.js';
 
 export {
   setPageScale,
@@ -13,7 +13,7 @@ export {
   readPageScale,
   parseMeasureDict,
 } from './measure/viewport.js';
-export { deleteMarkup, pageHasNoAnnots } from './annots/delete.js';
+export { deleteMarkup, restoreMarkup, pageHasNoAnnots } from './annots/delete.js';
 export { buildMeasureDict } from './measure/measureDict.js';
 export { computeMeasurement } from './measure/compute.js';
 export {

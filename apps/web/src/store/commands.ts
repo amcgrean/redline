@@ -22,6 +22,7 @@ import {
   clearPageScale,
   deleteMarkup,
   moveMarkup,
+  restoreMarkup,
   setPageScale,
 } from '@redline/pdf-core';
 
@@ -157,6 +158,20 @@ export function addCountCommand(
     (nm) => addCountMarkup(doc, pageIndex, center, nm ? { ...options, nm } : options),
     doc,
   );
+}
+
+/** Delete markups (Delete key). Undo re-links them at their old positions. */
+export function deleteCommand(doc: RedlineDocument, ids: string[]): Command {
+  return {
+    label: ids.length === 1 ? 'Delete' : `Delete ${ids.length} markups`,
+    do() {
+      for (const id of ids) deleteMarkup(doc, id);
+    },
+    undo() {
+      // Restore in reverse so list/annots indices land where they were.
+      for (const id of [...ids].reverse()) restoreMarkup(doc, id);
+    },
+  };
 }
 
 /** Move a markup. Undo moves it back and restores its previous `/M`. */

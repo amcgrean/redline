@@ -15,7 +15,7 @@
  * parsed from the file must be marked explicitly, which `markChanged` does.
  */
 
-import { PDFArray, PDFName, PDFRef, type PDFDocument } from '@cantoo/pdf-lib';
+import { PDFArray, PDFDict, PDFName, PDFRef, type PDFDocument } from '@cantoo/pdf-lib';
 import type { RedlineDocument } from '../types.js';
 
 type Snapshot = ReturnType<PDFDocument['takeSnapshot']>;
@@ -93,8 +93,54 @@ export interface SaveResult {
   update: Uint8Array;
 }
 
+export interface SaveOptions {
+  /**
+   * Apply pending deletions (`doc.trash`): free file-born objects in the xref and drop
+   * session-born ones from the update. After this the trash is empty and cannot be
+   * restored, so only a user-initiated Save passes it; autosave leaves the trash alone.
+   */
+  finalize?: boolean;
+}
+
+/** Objects an annotation owns outright: its appearance stream and its Measure copy. */
+function ownedSubObjects(doc: RedlineDocument, dict: PDFDict): PDFRef[] {
+  const refs: PDFRef[] = [];
+  const ap = dict.get(PDFName.of('AP'));
+  const apDict = ap instanceof PDFRef ? doc.pdfDoc.context.lookup(ap) : ap;
+  if (ap instanceof PDFRef) refs.push(ap);
+  if (apDict instanceof PDFDict) {
+    const n = apDict.get(PDFName.of('N'));
+    if (n instanceof PDFRef) refs.push(n);
+  }
+  const measure = dict.get(PDFName.of('Measure'));
+  if (measure instanceof PDFRef) refs.push(measure);
+  return refs;
+}
+
+function finalizeDeletions(doc: RedlineDocument): void {
+  const snapshot = snapshotOf(doc);
+  const context = doc.pdfDoc.context;
+  for (const entry of doc.trash) {
+    const { ref, raw } = entry.markup;
+    const refs = [ref, ...ownedSubObjects(doc, raw), ...(entry.popup ? [entry.popup] : [])];
+    for (const r of refs) {
+      if (r.objectNumber > doc.baselineObjectNumber) {
+        // Created this session: never reached the file, so just drop it from the update.
+        context.delete(r);
+      } else {
+        snapshot.markDeletedRef(r);
+      }
+    }
+  }
+  doc.trash = [];
+}
+
 /** Original bytes plus an appended incremental update. */
-export async function saveIncremental(doc: RedlineDocument): Promise<SaveResult> {
+export async function saveIncremental(
+  doc: RedlineDocument,
+  options: SaveOptions = {},
+): Promise<SaveResult> {
+  if (options.finalize) finalizeDeletions(doc);
   const update = await doc.pdfDoc.saveIncremental(snapshotOf(doc), { useObjectStreams: false });
   const bytes = new Uint8Array(doc.originalBytes.length + update.length);
   bytes.set(doc.originalBytes, 0);

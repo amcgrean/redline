@@ -94,6 +94,8 @@ export async function openDocument(
     pageScales,
     ownViewports: new Map(),
     pageSizes,
+    trash: [],
+    baselineObjectNumber: pdfDoc.context.largestObjectNumber,
   };
   // Baseline for incremental saves — must precede any object registration.
   initSnapshot(doc);

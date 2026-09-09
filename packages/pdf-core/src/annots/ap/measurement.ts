@@ -386,10 +386,18 @@ export function buildCircleAppearance(spec: CircleAppearanceSpec): AppearanceRes
   if (spec.fill) builder.fillColor(spec.fill);
   builder
     .moveTo(c.x + r, c.y)
-    .push(`${fmt(c.x + r)} ${fmt(c.y + k)} ${fmt(c.x + k)} ${fmt(c.y + r)} ${fmt(c.x)} ${fmt(c.y + r)} c`)
-    .push(`${fmt(c.x - k)} ${fmt(c.y + r)} ${fmt(c.x - r)} ${fmt(c.y + k)} ${fmt(c.x - r)} ${fmt(c.y)} c`)
-    .push(`${fmt(c.x - r)} ${fmt(c.y - k)} ${fmt(c.x - k)} ${fmt(c.y - r)} ${fmt(c.x)} ${fmt(c.y - r)} c`)
-    .push(`${fmt(c.x + k)} ${fmt(c.y - r)} ${fmt(c.x + r)} ${fmt(c.y - k)} ${fmt(c.x + r)} ${fmt(c.y)} c`)
+    .push(
+      `${fmt(c.x + r)} ${fmt(c.y + k)} ${fmt(c.x + k)} ${fmt(c.y + r)} ${fmt(c.x)} ${fmt(c.y + r)} c`,
+    )
+    .push(
+      `${fmt(c.x - k)} ${fmt(c.y + r)} ${fmt(c.x - r)} ${fmt(c.y + k)} ${fmt(c.x - r)} ${fmt(c.y)} c`,
+    )
+    .push(
+      `${fmt(c.x - r)} ${fmt(c.y - k)} ${fmt(c.x - k)} ${fmt(c.y - r)} ${fmt(c.x)} ${fmt(c.y - r)} c`,
+    )
+    .push(
+      `${fmt(c.x + k)} ${fmt(c.y - r)} ${fmt(c.x + r)} ${fmt(c.y - k)} ${fmt(c.x + r)} ${fmt(c.y)} c`,
+    )
     .closePath()
     .push(spec.fill ? 'B' : 'S');
   builder.restore();

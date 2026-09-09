@@ -10,7 +10,7 @@ import { PDFArray, PDFName } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';
 import { addLengthMeasurement, addAreaMeasurement, moveMarkup } from '../src/annots/write.js';
-import { deleteMarkup } from '../src/annots/delete.js';
+import { deleteMarkup, restoreMarkup } from '../src/annots/delete.js';
 import { setPageScale, clearPageScale } from '../src/measure/viewport.js';
 import { blankArchD, syntheticBluebeam } from './helpers/synthetic.js';
 import type { Scale, UnitFormat } from '../src/types.js';
@@ -20,8 +20,8 @@ const FTIN16: UnitFormat = { display: 'ft-in', precision: 16 };
 const NOW = new Date('2026-09-08T10:15:00-05:00');
 const opts = { subject: 'Test', author: 'Test', now: NOW };
 
-async function reopen(doc: Awaited<ReturnType<typeof openDocument>>) {
-  const { bytes, update } = await saveIncremental(doc);
+async function reopen(doc: Awaited<ReturnType<typeof openDocument>>, finalize = true) {
+  const { bytes, update } = await saveIncremental(doc, { finalize });
   return { reopened: await openDocument(bytes), update: Buffer.from(update).toString('latin1') };
 }
 
@@ -56,6 +56,7 @@ describe('deleteMarkup', () => {
     expect(reopened.markups.map((m) => m.id)).toEqual(before.filter((id) => id !== victim.id));
     // The freed object shows up in the xref as free, not as a rewritten dictionary.
     expect(update).not.toMatch(new RegExp(`\\n${victimObj} 0 obj`));
+    expect(update).toMatch(new RegExp(`\\n${victimObj} 1\\n`)); // xref subsection for the freed object
     // Only the /Annots holder was rewritten; no surviving annotation was.
     for (const m of reopened.markups) {
       expect(update).not.toContain(`/NM (${m.id})`);
@@ -126,5 +127,46 @@ describe('clearPageScale', () => {
     const vp = reopened.pdfDoc.getPage(0).node.lookup(PDFName.of('VP'));
     expect(vp instanceof PDFArray ? vp.size() : 0).toBe(1);
     expect(reopened.pageScales.get(0)?.scale.worldLength).toBeCloseTo(4, 5);
+  });
+});
+
+describe('restoreMarkup', () => {
+  it('undoes a delete of a file-born markup at its original position', async () => {
+    const doc = await openDocument(await syntheticBluebeam());
+    const before = doc.markups.map((m) => m.id);
+    const victim = doc.markups[1]!;
+    deleteMarkup(doc, victim.id);
+    expect(doc.trash).toHaveLength(1);
+    expect(restoreMarkup(doc, victim.id)?.id).toBe(victim.id);
+    expect(doc.trash).toHaveLength(0);
+    expect(doc.markups.map((m) => m.id)).toEqual(before);
+
+    // Nothing about the file changes: the annots holder is rewritten but every annotation
+    // object is untouched, and the reopened document is identical in content.
+    const { reopened, update } = await reopen(doc);
+    expect(reopened.markups.map((m) => m.id)).toEqual(before);
+    for (const id of before) expect(update).not.toContain(`/NM (${id})`);
+  });
+
+  it('a non-finalising save (autosave) keeps a deleted markup restorable', async () => {
+    const doc = await openDocument(await blankArchD());
+    setPageScale(doc, 0, EIGHTH, FTIN16);
+    const a = addLengthMeasurement(doc, 0, { x: 100, y: 100 }, { x: 820, y: 100 }, opts);
+    deleteMarkup(doc, a.id);
+    const { reopened } = await reopen(doc, false);
+    expect(reopened.markups).toHaveLength(0); // unlinked in the autosave bytes
+    // ...but the live document can still bring it back.
+    expect(restoreMarkup(doc, a.id)?.id).toBe(a.id);
+    const { reopened: again } = await reopen(doc);
+    expect(again.markups.map((m) => m.id)).toEqual([a.id]);
+  });
+
+  it('a finalising save empties the trash and frees nothing twice', async () => {
+    const doc = await openDocument(await syntheticBluebeam());
+    const victim = doc.markups[0]!;
+    deleteMarkup(doc, victim.id);
+    await reopen(doc);
+    expect(doc.trash).toHaveLength(0);
+    expect(restoreMarkup(doc, victim.id)).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@
  */
 
 import { countGroupOf } from '@redline/pdf-core';
-import { useEditor } from '../store';
+import { actions, useEditor } from '../store';
 
 function rgbCss(c: { r: number; g: number; b: number } | undefined): string | undefined {
   if (!c) return undefined;
@@ -68,6 +68,15 @@ export function PropertiesPanel() {
         </>
       )}
       <div className="muted small">Editing properties arrives with the style writers.</div>
+      <button
+        type="button"
+        className="danger"
+        disabled={markup.flags.locked}
+        onClick={() => actions.deleteMarkups([markup.id])}
+        title="Delete (Del)"
+      >
+        Delete markup
+      </button>
     </div>
   );
 }

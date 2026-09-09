@@ -616,3 +616,17 @@ table.markups tr.selected td {
   border: 1px solid #999;
   border-radius: 3px;
 }
+
+button.danger {
+  font: inherit;
+  padding: 5px 10px;
+  border: 1px solid #c62828;
+  color: #c62828;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+button.danger:hover:not(:disabled) {
+  background: #ffebee;
+}

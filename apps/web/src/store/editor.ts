@@ -41,6 +41,7 @@ import {
   addLengthCommand,
   addPolylineCommand,
   calibratePagesCommand,
+  deleteCommand,
   moveCommand,
 } from './commands';
 import type { FindHit } from '../text/textIndex';
@@ -541,6 +542,22 @@ export const actions = {
     bump({ status: `Moved ${id}` });
   },
 
+  /** Delete the selected markup (or the given ids). */
+  deleteMarkups(ids?: string[]): void {
+    const session = getSession();
+    if (!session) return;
+    const targets =
+      ids ?? (useEditorStore.getState().selectedId ? [useEditorStore.getState().selectedId!] : []);
+    const deletable = targets.filter((id) => {
+      const m = session.doc.markups.find((x) => x.id === id);
+      return m && !m.flags.locked;
+    });
+    if (deletable.length === 0) return;
+    const command = deleteCommand(session.doc, deletable);
+    session.history.run(command);
+    bump({ selectedId: undefined, status: command.label });
+  },
+
   undo(): void {
     const session = getSession();
     const command = session?.history.undo();
@@ -563,7 +580,7 @@ export const actions = {
     set((s) => {
       s.status = 'Saving…';
     });
-    const { bytes, update } = await saveIncremental(session.doc);
+    const { bytes, update } = await saveIncremental(session.doc, { finalize: true });
     const target = await saveFn(session.file, bytes);
     // Dev only: mirror browser saves into fixtures/out/browser/ for the interop checklist.
     if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('fixture')) {

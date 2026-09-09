@@ -146,4 +146,21 @@ export interface RedlineDocument {
   ownViewports: Map<number, PDFRef>;
   /** Page sizes in points, `[width, height]`, from the CropBox. */
   pageSizes: { width: number; height: number; rotation: number }[];
+  /**
+   * Deleted markups, still restorable (undo). They are unlinked from `/Annots` but their
+   * objects stay in the document until a finalising save (`saveIncremental(doc, { finalize })`).
+   */
+  trash: DeletedMarkup[];
+  /** Highest object number when the document was opened; anything above it is Redline's. */
+  baselineObjectNumber: number;
+}
+
+export interface DeletedMarkup {
+  markup: Markup;
+  /** Position in the page's `/Annots` at deletion time, so restore keeps z-order. */
+  annotsIndex: number;
+  /** Position in `markups` at deletion time. */
+  listIndex: number;
+  /** The annotation's `/Popup` ref, unlinked with it. */
+  popup?: PDFRef;
 }
