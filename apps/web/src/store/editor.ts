@@ -48,6 +48,7 @@ import { printDocument } from '../print';
 
 export type Tool =
   | 'select'
+  | 'pan'
   | 'text'
   | 'calibrate'
   | 'length'
@@ -88,6 +89,8 @@ export interface EditorUiState {
   scrollTo?: { page: number; nonce: number };
   /** The count group in progress while the Count tool is active. */
   countGroup?: string;
+  /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
+  spacePan: boolean;
   /** Bumps on every document mutation so subscribers re-render. */
   version: number;
   dirty: boolean;
@@ -116,6 +119,7 @@ export const useEditorStore = create<EditorUiState>()(
     showThumbnails: false,
     find: { open: false, query: '', hits: [], index: 0 },
     autosave: 'idle',
+    spacePan: false,
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -256,6 +260,12 @@ export const actions = {
       s.selectedId = undefined;
       // Every activation of the Count tool starts a fresh group.
       s.countGroup = tool === 'count' ? generateNM() : undefined;
+    });
+  },
+
+  setSpacePan(active: boolean): void {
+    set((s) => {
+      if (s.spacePan !== active) s.spacePan = active;
     });
   },
 

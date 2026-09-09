@@ -45,7 +45,8 @@ const SELECT_COLOR = '#0288d1';
 const DRAFT_COLOR = '#d32f2f';
 
 export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
-  const { doc, tool, selectedId, version } = useEditor();
+  const { doc, tool, selectedId, version, spacePan } = useEditor();
+  const panning = tool === 'pan' || spacePan;
   const [draft, setDraftState] = useState<Point[]>([]);
   // Mirror of `draft` for handlers that fire in the same tick as a state update (Konva
   // raises `dblclick` after the second `click`, with the closure still holding the old draft).
@@ -230,8 +231,9 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
           width: Math.max(0, visible.width),
           height: Math.max(0, visible.height),
           cursor: tool === 'select' ? 'default' : tool === 'text' ? 'text' : 'crosshair',
-          // In Text mode the pdf.js text layer underneath owns selection.
-          pointerEvents: tool === 'text' ? 'none' : 'auto',
+          // In Text mode the pdf.js text layer underneath owns selection; while panning
+          // the viewer's own drag handler does.
+          pointerEvents: tool === 'text' || panning ? 'none' : 'auto',
         }}
       >
         <Stage

@@ -413,3 +413,12 @@ body {
   border-radius: 3px;
   cursor: pointer;
 }
+
+/* Pan tool / Space-hold / middle-button pan. */
+.viewer.pan {
+  cursor: grab;
+}
+.viewer.pan.panning,
+.viewer.panning {
+  cursor: grabbing;
+}

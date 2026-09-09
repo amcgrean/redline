@@ -79,6 +79,9 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
   const currentPage = useEditorStore((s) => s.currentPage);
   const scrollTo = useEditorStore((s) => s.scrollTo);
   const textMode = useEditorStore((s) => s.tool === 'text');
+  const panTool = useEditorStore((s) => s.tool === 'pan');
+  const spacePan = useEditorStore((s) => s.spacePan);
+  const panning = panTool || spacePan;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PdfjsPage[]>([]);
   const [scroll, setScroll] = useState<ScrollBox>({ left: 0, top: 0, width: 0, height: 0 });
@@ -186,12 +189,12 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     actions.clearScrollRequest();
   }, [scrollTo, layout, layoutMode]);
 
-  // Ctrl+wheel zooms around the cursor.
+  // The wheel zooms around the cursor (Revu's default); Shift+wheel scrolls natively.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
+      if (event.shiftKey) return;
       event.preventDefault();
       const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15;
       const rect = el.getBoundingClientRect();
@@ -207,6 +210,42 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoom]);
 
+  // Drag-to-pan: the Pan tool, Space held, or the middle button from any tool.
+  const drag = useRef<
+    { pointerId: number; x: number; y: number; left: number; top: number } | undefined
+  >(undefined);
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const middle = event.button === 1;
+    if (!(middle || (event.button === 0 && panning))) return;
+    event.preventDefault();
+    drag.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: el.scrollLeft,
+      top: el.scrollTop,
+    };
+    el.setPointerCapture(event.pointerId);
+    el.classList.add('panning');
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    const d = drag.current;
+    if (!el || !d || d.pointerId !== event.pointerId) return;
+    el.scrollLeft = d.left - (event.clientX - d.x);
+    el.scrollTop = d.top - (event.clientY - d.y);
+  };
+  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    const d = drag.current;
+    if (!el || !d || d.pointerId !== event.pointerId) return;
+    drag.current = undefined;
+    el.releasePointerCapture(event.pointerId);
+    el.classList.remove('panning');
+  };
+
   const visible = useMemo(
     () => ({
       left: scroll.left - RENDER_MARGIN,
@@ -218,7 +257,17 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
   );
 
   return (
-    <div className="viewer" ref={scrollRef} data-testid="viewer" data-layout={layoutMode}>
+    <div
+      className={`viewer${panning ? ' pan' : ''}`}
+      ref={scrollRef}
+      data-testid="viewer"
+      data-layout={layoutMode}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onAuxClick={(e) => e.preventDefault()}
+    >
       <div className="viewer-inner" style={{ width: layout.width, height: layout.height }}>
         {layout.items.map((item) => {
           const pageBox = {

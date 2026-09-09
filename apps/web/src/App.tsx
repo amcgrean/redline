@@ -22,6 +22,11 @@ import { formatFeetInches, worldUnitsPerPoint } from '@redline/pdf-core';
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: 'select', label: 'Select (V)', hint: 'Click a markup to select it, then drag to move.' },
+  {
+    id: 'pan',
+    label: 'Pan (H)',
+    hint: 'Drag to move the view. Hold Space from any tool, or drag with the middle button. Scroll wheel zooms.',
+  },
   { id: 'text', label: 'Text', hint: 'Drag across page text to select it; Ctrl+C copies.' },
   {
     id: 'calibrate',
@@ -150,6 +155,7 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (ctrl || event.altKey) return;
   const plain: Record<string, Tool> = {
     v: 'select',
+    h: 'pan',
     x: 'calibrate',
     m: 'length',
     a: 'area',
@@ -192,6 +198,27 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [hasDoc, dirty]);
+
+  // Hold Space to pan from any tool; release to return to it.
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      actions.setSpacePan(true);
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.code === 'Space') actions.setSpacePan(false);
+    };
+    const blur = () => actions.setSpacePan(false);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
 
   // Paste a PDF from the clipboard (e.g. copied in Explorer).
   useEffect(() => {
