@@ -37,6 +37,7 @@ export {
   countGroupOf,
   moveMarkup,
   updateMarkupProperties,
+  setMarkupGeometry,
   canRegenerateAppearance,
   captionFor,
   DEFAULT_LENGTH_STYLE,

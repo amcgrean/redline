@@ -5,6 +5,7 @@
 
 import type {
   CountOptions,
+  Geometry,
   Markup,
   MarkupPatch,
   MeasurementOptions,
@@ -24,6 +25,7 @@ import {
   deleteMarkup,
   moveMarkup,
   restoreMarkup,
+  setMarkupGeometry,
   setPageScale,
   updateMarkupProperties,
 } from '@redline/pdf-core';
@@ -211,6 +213,31 @@ export function updateCommand(
         const was = previous.get(id);
         if (was) updateMarkupProperties(doc, id, was);
       }
+    },
+  };
+}
+
+/** Deep copy so undo is not affected by later in-place edits. */
+function cloneGeometry(g: Geometry): Geometry {
+  return JSON.parse(JSON.stringify(g)) as Geometry;
+}
+
+/** Vertex edit / resize. Undo puts the previous geometry (and /M) back. */
+export function geometryCommand(doc: RedlineDocument, id: string, geometry: Geometry): Command {
+  let previous: Geometry | undefined;
+  let previousModified: Date | undefined;
+  return {
+    label: 'Edit shape',
+    do() {
+      const m = doc.markups.find((x) => x.id === id);
+      if (!m) return;
+      previous = cloneGeometry(m.geometry);
+      previousModified = m.text?.modified;
+      setMarkupGeometry(doc, id, cloneGeometry(geometry));
+    },
+    undo() {
+      if (previous)
+        setMarkupGeometry(doc, id, cloneGeometry(previous), previousModified ?? new Date());
     },
   };
 }

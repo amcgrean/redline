@@ -10,7 +10,15 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Markup, MarkupPatch, PageScale, Point, Scale, UnitFormat } from '@redline/pdf-core';
+import type {
+  Geometry,
+  Markup,
+  MarkupPatch,
+  PageScale,
+  Point,
+  Scale,
+  UnitFormat,
+} from '@redline/pdf-core';
 import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
@@ -42,6 +50,7 @@ import {
   addPolylineCommand,
   calibratePagesCommand,
   deleteCommand,
+  geometryCommand,
   moveCommand,
   updateCommand,
 } from './commands';
@@ -541,6 +550,14 @@ export const actions = {
     const { doc, history } = requireSession();
     history.run(moveCommand(doc, id, dx, dy));
     bump({ status: `Moved ${id}` });
+  },
+
+  /** Vertex edit / resize of one markup. */
+  setGeometry(id: string, geometry: Geometry): void {
+    const { doc, history } = requireSession();
+    history.run(geometryCommand(doc, id, geometry));
+    const m = doc.markups.find((x) => x.id === id);
+    bump({ status: `Edit shape${m?.text?.contents ? ` ${m.text.contents}` : ''}` });
   },
 
   /** Edit subject/style of the given markups (default: the selection). */

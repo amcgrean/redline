@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Group, Line, Rect, Ellipse, Text, Image as KImage } from 'react-konva';
+import { countGroupOf } from '@redline/pdf-core';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Markup, Point, Rect as PdfRect, RGB } from '@redline/pdf-core';
@@ -42,6 +43,7 @@ function css(color: RGB | undefined, alpha = 1): string {
 }
 
 const SELECT_COLOR = '#0288d1';
+const HANDLE = 8;
 const DRAFT_COLOR = '#d32f2f';
 
 export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
@@ -499,8 +501,130 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
           listening={false}
         />
       )}
+      {selected && draggable && <Handles markup={markup} toPx={toPx} toPdf={toPdf} zoom={zoom} />}
     </Group>
   );
+}
+
+/**
+ * Edit handles: one per vertex for lines / polylines / polygons (drag to move that vertex),
+ * four corners for rectangle-shaped markups (drag to resize). Count symbols have a fixed
+ * size and get none. Each drop is one undoable command.
+ */
+function Handles({
+  markup,
+  toPx,
+  toPdf,
+  zoom,
+}: {
+  markup: Markup;
+  toPx: (p: Point) => [number, number];
+  toPdf: (x: number, y: number) => Point;
+  zoom: number;
+}) {
+  void zoom;
+  const { geometry } = markup;
+  const size = HANDLE;
+  const common = {
+    width: size,
+    height: size,
+    fill: '#fff',
+    stroke: SELECT_COLOR,
+    strokeWidth: 1.5,
+    draggable: true,
+    // Do not let a handle drag start the parent group's drag.
+    onDragStart: (e: KonvaEventObject<DragEvent>) => {
+      e.cancelBubble = true;
+    },
+    onMouseDown: (e: KonvaEventObject<MouseEvent>) => {
+      e.cancelBubble = true;
+    },
+  };
+
+  if (geometry.kind === 'line' || geometry.kind === 'poly') {
+    const points = geometry.points;
+    return (
+      <>
+        {points.map((p, i) => {
+          const [x, y] = toPx(p);
+          return (
+            <Rect
+              key={i}
+              {...common}
+              name="vertex-handle"
+              x={x - size / 2}
+              y={y - size / 2}
+              onDragEnd={(e) => {
+                const node = e.target;
+                const moved = toPdf(node.x() + size / 2, node.y() + size / 2);
+                node.position({ x: x - size / 2, y: y - size / 2 });
+                const next = points.map((q, j) => (j === i ? moved : q));
+                if (geometry.kind === 'line') {
+                  actions.setGeometry(markup.id, {
+                    kind: 'line',
+                    points: [next[0]!, next[1]!],
+                  });
+                } else {
+                  // A closed run (perimeter) keeps its last vertex on its first.
+                  const closedRun =
+                    points.length > 2 &&
+                    points[0]!.x === points[points.length - 1]!.x &&
+                    points[0]!.y === points[points.length - 1]!.y;
+                  if (closedRun && (i === 0 || i === points.length - 1)) {
+                    next[0] = moved;
+                    next[points.length - 1] = moved;
+                  }
+                  actions.setGeometry(markup.id, { ...geometry, points: next });
+                }
+              }}
+            />
+          );
+        })}
+      </>
+    );
+  }
+
+  if (geometry.kind === 'rect' && !countGroupOf(markup)) {
+    const [x0, y0, x1, y1] = geometry.rect;
+    const corners: [number, number][] = [
+      [x0, y0],
+      [x1, y0],
+      [x1, y1],
+      [x0, y1],
+    ];
+    return (
+      <>
+        {corners.map(([cx, cy], i) => {
+          const [x, y] = toPx({ x: cx, y: cy });
+          return (
+            <Rect
+              key={i}
+              {...common}
+              name="corner-handle"
+              x={x - size / 2}
+              y={y - size / 2}
+              onDragEnd={(e) => {
+                const node = e.target;
+                const moved = toPdf(node.x() + size / 2, node.y() + size / 2);
+                node.position({ x: x - size / 2, y: y - size / 2 });
+                const ox = i === 0 || i === 3 ? x1 : x0; // the opposite corner stays put
+                const oy = i === 0 || i === 1 ? y1 : y0;
+                const rect: [number, number, number, number] = [
+                  Math.min(ox, moved.x),
+                  Math.min(oy, moved.y),
+                  Math.max(ox, moved.x),
+                  Math.max(oy, moved.y),
+                ];
+                if (rect[2] - rect[0] < 1 || rect[3] - rect[1] < 1) return;
+                actions.setGeometry(markup.id, { kind: 'rect', rect });
+              }}
+            />
+          );
+        })}
+      </>
+    );
+  }
+  return null;
 }
 
 /** PLAN §3.5 fallback: the annotation's own /AP rendered to a bitmap, else a labelled box. */

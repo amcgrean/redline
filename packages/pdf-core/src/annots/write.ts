@@ -8,12 +8,21 @@
 
 import type { PDFDict, PDFRef } from '@cantoo/pdf-lib';
 import { PDFArray, PDFName, PDFNumber, PDFString, type PDFContext } from '@cantoo/pdf-lib';
-import type { LineEnding, Markup, PageScale, Point, Rect, RedlineDocument, RGB } from '../types.js';
+import type {
+  Geometry,
+  LineEnding,
+  Markup,
+  PageScale,
+  Point,
+  Rect,
+  RedlineDocument,
+  RGB,
+} from '../types.js';
 import { generateUniqueNM } from '../ids.js';
 import { formatArea, formatLength } from '../measure/format.js';
 import { buildMeasureDict } from '../measure/measureDict.js';
 import { computeMeasurement } from '../measure/compute.js';
-import { translatePoints, translateRect } from '../measure/geometry.js';
+import { boundsOf, translatePoints, translateRect } from '../measure/geometry.js';
 import { colorArray, lookupText, numArray, pdfDate, round } from './dict.js';
 import { isPlaceholderId, requireMarkup } from '../document/open.js';
 import { annotsArrayForWrite, markChanged } from '../document/save.js';
@@ -806,6 +815,84 @@ export function updateMarkupProperties(
     } else {
       refreshMeasurement(doc, markup, styleFromMarkup(markup), 'move');
     }
+  }
+
+  raw.set(PDFName.of('M'), PDFString.of(pdfDate(now)));
+  if (markup.text) markup.text.modified = now;
+  markChanged(doc, markup.ref);
+  return markup;
+}
+
+/**
+ * Replace a markup's geometry (vertex edit / resize). Geometry keys and `/Rect` are
+ * rewritten; a measurement gets a new value, caption, `/Contents` (and `/RC` mirror) and
+ * `/AP`; other markups keep their existing appearance stream, which maps onto the new
+ * `/Rect`. `/M` is bumped. Nothing else is touched.
+ */
+export function setMarkupGeometry(
+  doc: RedlineDocument,
+  id: string,
+  geometry: Geometry,
+  now: Date = new Date(),
+): Markup {
+  const markup = requireMarkup(doc, id);
+  const context = doc.pdfDoc.context;
+  const raw = markup.raw;
+  if (geometry.kind !== markup.geometry.kind) {
+    throw new Error(`Cannot change geometry kind ${markup.geometry.kind} -> ${geometry.kind}`);
+  }
+  ensureNM(doc, markup);
+  markup.geometry = geometry;
+
+  switch (geometry.kind) {
+    case 'line': {
+      const [p, q] = geometry.points;
+      raw.set(PDFName.of('L'), numArray(context, [p.x, p.y, q.x, q.y]));
+      break;
+    }
+    case 'poly':
+      raw.set(
+        PDFName.of('Vertices'),
+        numArray(
+          context,
+          geometry.points.flatMap((p) => [p.x, p.y]),
+        ),
+      );
+      break;
+    case 'ink': {
+      const inkList = PDFArray.withContext(context);
+      for (const path of geometry.paths) {
+        inkList.push(
+          numArray(
+            context,
+            path.flatMap((p) => [p.x, p.y]),
+          ),
+        );
+      }
+      raw.set(PDFName.of('InkList'), inkList);
+      break;
+    }
+    case 'quads':
+      raw.set(PDFName.of('QuadPoints'), numArray(context, geometry.quads));
+      break;
+    case 'rect':
+    case 'none':
+      break;
+  }
+
+  if (canRegenerateAppearance(markup) && !countGroupOf(markup)) {
+    // A real edit: recompute the value, caption, /Contents (+ /RC) and the appearance.
+    refreshMeasurement(doc, markup, styleFromMarkup(markup), 'create');
+  } else {
+    const rect: Rect =
+      geometry.kind === 'rect' || geometry.kind === 'none' || geometry.kind === 'quads'
+        ? geometry.rect
+        : boundsOf(
+            geometry.kind === 'ink' ? geometry.paths.flat() : geometry.points,
+            Math.max(markup.style.width, 1) * 2,
+          );
+    markup.rect = [round(rect[0]), round(rect[1]), round(rect[2]), round(rect[3])];
+    raw.set(PDFName.of('Rect'), numArray(context, markup.rect));
   }
 
   raw.set(PDFName.of('M'), PDFString.of(pdfDate(now)));
