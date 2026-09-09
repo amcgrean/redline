@@ -54,6 +54,26 @@ export function calibrateCommand(
   };
 }
 
+/** Calibrate several pages at once (scope "all" / "like"); one undo restores every page. */
+export function calibratePagesCommand(
+  doc: RedlineDocument,
+  pages: number[],
+  scale: Scale,
+  units: UnitFormat,
+): Command {
+  const commands = pages.map((p) => calibrateCommand(doc, p, scale, units));
+  return {
+    label:
+      pages.length === 1 ? `Calibrate page ${pages[0]! + 1}` : `Calibrate ${pages.length} pages`,
+    do() {
+      for (const c of commands) c.do();
+    },
+    undo() {
+      for (const c of [...commands].reverse()) c.undo();
+    },
+  };
+}
+
 export interface AddCommand extends Command {
   /** The `/NM` of the markup this command creates. Stable across undo/redo. */
   readonly id: string;

@@ -65,7 +65,9 @@ test('unsaved changes survive a reload through autosave + recover', async ({ pag
   await expect(page.getByText(/\(from document\)/)).toBeVisible();
   await page.getByRole('button', { name: 'Toggle thumbnails' }).click();
   await expect(page.getByLabel('Pages').getByRole('button')).toHaveCount(1);
-  await expect(page.getByRole('tab')).toContainText('crash.pdf *');
+  await expect(
+    page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab'),
+  ).toContainText('crash.pdf *');
 
   // Once recovered, the offer is gone on the next visit (the slot is reused, not duplicated).
   await page.evaluate(() => {

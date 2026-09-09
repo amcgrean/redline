@@ -40,7 +40,7 @@ import {
   addCountCommand,
   addLengthCommand,
   addPolylineCommand,
-  calibrateCommand,
+  calibratePagesCommand,
   moveCommand,
 } from './commands';
 import type { FindHit } from '../text/textIndex';
@@ -60,6 +60,9 @@ export type Tool =
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
+export type PanelTab = 'measure' | 'markups' | 'pages' | 'properties';
+/** Which pages a new scale applies to (PLAN §3.7 "Scope"). */
+export type ScaleScope = 'page' | 'like' | 'all';
 
 export interface DocumentTab {
   id: string;
@@ -81,6 +84,8 @@ export interface EditorUiState {
   /** View-only rotation in degrees (0/90/180/270); never written to the file. */
   viewRotation: number;
   showThumbnails: boolean;
+  panel: { open: boolean; tab: PanelTab };
+  scaleScope: ScaleScope;
   find: { open: boolean; query: string; hits: FindHit[]; index: number };
   autosave: AutosaveState;
   /** 0-based page the viewer considers current (tracks scrolling). */
@@ -117,6 +122,8 @@ export const useEditorStore = create<EditorUiState>()(
     layoutMode: 'continuous',
     viewRotation: 0,
     showThumbnails: false,
+    panel: { open: true, tab: 'measure' },
+    scaleScope: 'page',
     find: { open: false, query: '', hits: [], index: 0 },
     autosave: 'idle',
     spacePan: false,
@@ -412,9 +419,15 @@ export const actions = {
     await clearAutosave(key);
   },
 
+  /** The Pages tab in the panel replaces the old left thumbnail strip. */
   toggleThumbnails(show?: boolean): void {
+    const { panel } = useEditorStore.getState();
+    const showing = panel.open && panel.tab === 'pages';
+    const next = show ?? !showing;
     set((s) => {
-      s.showThumbnails = show ?? !s.showThumbnails;
+      s.showThumbnails = next;
+      if (next) s.panel = { open: true, tab: 'pages' };
+      else if (s.panel.tab === 'pages') s.panel.open = false;
     });
   },
 
@@ -456,10 +469,31 @@ export const actions = {
     return getSession()?.doc.pageScales.get(pageIndex);
   },
 
+  /** Calibrate per the current scope: this page, pages like it, or all pages. */
   calibrate(pageIndex: number, scale: Scale, units: UnitFormat): void {
     const { doc, history } = requireSession();
-    history.run(calibrateCommand(doc, pageIndex, scale, units));
-    bump({ status: `Page ${pageIndex + 1} scale set` });
+    const pages = pagesInScope(doc.pageSizes, pageIndex, useEditorStore.getState().scaleScope);
+    const command = calibratePagesCommand(doc, pages, scale, units);
+    history.run(command);
+    bump({ status: pages.length === 1 ? `Page ${pageIndex + 1} scale set` : `${command.label}` });
+  },
+
+  setScaleScope(scope: ScaleScope): void {
+    set((s) => {
+      s.scaleScope = scope;
+    });
+  },
+
+  setPanel(tab: PanelTab): void {
+    set((s) => {
+      s.panel = { open: true, tab };
+    });
+  },
+
+  togglePanel(open?: boolean): void {
+    set((s) => {
+      s.panel.open = open ?? !s.panel.open;
+    });
   },
 
   addLength(pageIndex: number, a: Point, b: Point): Markup | undefined {
@@ -553,6 +587,25 @@ export const actions = {
     });
   },
 };
+
+/** Pages a scale applies to. "like" = same size and orientation as `pageIndex`. */
+function pagesInScope(
+  sizes: { width: number; height: number; rotation: number }[],
+  pageIndex: number,
+  scope: ScaleScope,
+): number[] {
+  if (scope === 'page') return [pageIndex];
+  if (scope === 'all') return sizes.map((_, i) => i);
+  const me = sizes[pageIndex];
+  if (!me) return [pageIndex];
+  const same = (a: number, b: number) => Math.abs(a - b) < 0.5;
+  return sizes
+    .map((s, i) => ({ s, i }))
+    .filter(
+      ({ s }) => same(s.width, me.width) && same(s.height, me.height) && s.rotation === me.rotation,
+    )
+    .map(({ i }) => i);
+}
 
 /** UI state plus the live document objects, in the shape the POC components expect. */
 export function useEditor() {

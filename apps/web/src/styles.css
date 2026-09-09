@@ -422,3 +422,197 @@ body {
 .viewer.panning {
   cursor: grabbing;
 }
+
+/* Right-hand panel (PLAN §3.11). */
+.panel {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: #f4f4f4;
+  border-left: 1px solid #bbb;
+  min-height: 0;
+}
+.panel.collapsed {
+  width: auto;
+}
+.panel-tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #ccc;
+  background: #e6e6e6;
+}
+.panel.collapsed .panel-tabs {
+  flex-direction: column;
+  border-bottom: none;
+}
+.panel-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.panel.collapsed .panel-tab {
+  writing-mode: vertical-rl;
+  padding: 10px 4px;
+  border-bottom: none;
+  border-left: 2px solid transparent;
+}
+.panel-tab.active {
+  background: #f4f4f4;
+  border-bottom-color: #d32f2f;
+  font-weight: 600;
+}
+.panel.collapsed .panel-tab.active {
+  border-left-color: #d32f2f;
+}
+.panel-collapse {
+  border: none;
+  background: transparent;
+  padding: 0 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.panel-body {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.panel-body .thumbnails {
+  width: auto;
+  border-right: none;
+  background: transparent;
+  align-items: center;
+}
+.panel-empty {
+  padding: 16px;
+  color: #666;
+  font-size: 13px;
+}
+.muted {
+  color: #666;
+}
+.small {
+  font-size: 11px;
+}
+.measure-panel,
+.properties-panel {
+  padding: 10px 12px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.measure-panel h3,
+.properties-panel h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+.measure-panel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.measure-panel select,
+.measure-panel input {
+  font: inherit;
+}
+.measure-panel .scope {
+  display: flex;
+  flex-direction: column;
+}
+.measure-panel button.wide {
+  width: 100%;
+  font: inherit;
+  padding: 6px;
+}
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.presets button {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 2px;
+  border: 1px solid #999;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.presets button:hover {
+  background: #fbe9e7;
+}
+.custom-scale input {
+  width: 4.5em;
+}
+.markups-panel {
+  overflow: auto;
+}
+table.markups {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.markups th {
+  text-align: left;
+  padding: 4px 6px;
+  background: #e6e6e6;
+  position: sticky;
+  top: 0;
+}
+table.markups td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #e3e3e3;
+  white-space: nowrap;
+}
+table.markups tr.group td {
+  background: #ececec;
+  font-weight: 600;
+}
+table.markups tr.group td.subtotal {
+  text-align: right;
+}
+table.markups tbody tr:not(.group) {
+  cursor: pointer;
+}
+table.markups tbody tr:not(.group):hover {
+  background: #f7f7f7;
+}
+table.markups tr.selected td {
+  background: #e3f2fd;
+}
+.properties-panel dl {
+  margin: 0;
+}
+.properties-panel dl > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid #e3e3e3;
+}
+.properties-panel dt {
+  color: #666;
+}
+.properties-panel dd {
+  margin: 0;
+  word-break: break-all;
+}
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #999;
+  border-radius: 3px;
+}

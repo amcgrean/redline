@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { Viewer } from './Viewer';
-import { Thumbnails } from './Thumbnails';
+import { Panel } from './panels/Panel';
 import { Recents } from './Recents';
 import { FindBar } from './FindBar';
 import { Recover } from './Recover';
@@ -148,6 +148,11 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (event.key === 'PageUp') {
     event.preventDefault();
     return actions.previousPage();
+  }
+  if (ctrl && event.shiftKey && /^Digit[1-4]$/.test(event.code)) {
+    event.preventDefault();
+    const tabs = ['measure', 'markups', 'pages', 'properties'] as const;
+    return actions.setPanel(tabs[Number(event.code.slice(5)) - 1]!);
   }
   if (event.key === 'Home' && ctrl) return actions.goToPage(0);
   if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
@@ -569,8 +574,8 @@ export function App() {
       </div>
       {doc && pdfjs ? (
         <div className="main">
-          {showThumbnails && <Thumbnails key={`thumbs-${activeId}`} pdfjs={pdfjs.doc} />}
           <Viewer key={pdfjs.doc.fingerprints[0] ?? activeId} pdfjs={pdfjs.doc} />
+          <Panel key={`panel-${activeId}`} pdfjs={pdfjs.doc} />
         </div>
       ) : (
         <div className="empty">

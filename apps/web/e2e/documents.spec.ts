@@ -36,7 +36,7 @@ test('two documents open in tabs; switching and closing work', async ({ page }) 
   await expect(page.locator('canvas').first()).toBeVisible();
   await upload(page, 'beta.pdf', await sheet('Beta', 3));
 
-  const tabs = page.getByRole('tab');
+  const tabs = page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
   await expect(tabs).toHaveCount(2);
   await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('1');
