@@ -3,6 +3,10 @@
  *
  *   1. spike-0.1-blank-archd.pdf — a blank ARCH D sheet with one page scale (1/8" = 1'-0",
  *      feet-inches to 1/16), one 80'-0" length and one 600 sf area.
+ *   1b. spike-0.2-measurements.pdf — the rest of the v1 measurement family on the same sheet:
+ *      a 120'-0" polylength, a 100'-0" perimeter, a 200 sf rectangle area and a count of five.
+ *      Perimeter (closed polyline) and count (plain circles + /RLAttrs) are the two forms whose
+ *      Revu handling is ASSUMED — this is the file that checks them.
  *   2. corpus/<fixture>.moved.pdf — every fixture re-saved after moving one markup 10 pt.
  *      (The corpus test writes these too; this script regenerates them without vitest.)
  *
@@ -16,7 +20,14 @@ import { PDFDocument, rgb } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';
 import { setPageScale } from '../src/measure/viewport.js';
-import { addAreaMeasurement, addLengthMeasurement, moveMarkup } from '../src/annots/write.js';
+import {
+  addAreaMeasurement,
+  addCountMarkup,
+  addLengthMeasurement,
+  addPolylineMeasurement,
+  moveMarkup,
+} from '../src/annots/write.js';
+import { generateNM } from '../src/ids.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const FIXTURES = resolve(HERE, '../../../fixtures');
@@ -91,6 +102,64 @@ async function spike01(): Promise<void> {
   console.log('wrote spike-0.1-blank-archd.pdf');
 }
 
+async function spike02(): Promise<void> {
+  const doc = await openDocument(await blankArchD());
+  setPageScale(
+    doc,
+    0,
+    { pageLength: 0.125, pageUnit: 'in', worldLength: 1, worldUnit: 'ft' },
+    { display: 'ft-in', precision: 16 },
+  );
+  // Polylength: 80' right, 40' up = 120'-0".
+  addPolylineMeasurement(
+    doc,
+    0,
+    [
+      { x: 300, y: 1300 },
+      { x: 1020, y: 1300 },
+      { x: 1020, y: 1660 },
+    ],
+    { subject: 'Base Trim', author: AUTHOR, style: { lineEnds: ['Slash', 'Slash'] } },
+  );
+  // Perimeter of a 30 x 20 ft room = 100'-0".
+  addPolylineMeasurement(
+    doc,
+    0,
+    [
+      { x: 300, y: 500 },
+      { x: 570, y: 500 },
+      { x: 570, y: 680 },
+      { x: 300, y: 680 },
+    ],
+    { subject: 'Room Perimeter', author: AUTHOR, closed: true, style: { dash: [8, 4] } },
+  );
+  // Rectangle area 20 x 10 ft = 200 sf (what the Rect Area tool writes).
+  addAreaMeasurement(
+    doc,
+    0,
+    [
+      { x: 1300, y: 500 },
+      { x: 1480, y: 500 },
+      { x: 1480, y: 590 },
+      { x: 1300, y: 590 },
+    ],
+    { subject: 'Slab', author: AUTHOR },
+  );
+  // Count of five studs.
+  const group = generateNM();
+  for (let i = 0; i < 5; i += 1) {
+    addCountMarkup(
+      doc,
+      0,
+      { x: 1300 + i * 90, y: 1000 },
+      { subject: 'Studs', author: AUTHOR, group },
+    );
+  }
+  const { bytes } = await saveIncremental(doc);
+  writeFileSync(join(OUT, 'spike-0.2-measurements.pdf'), bytes);
+  console.log('wrote spike-0.2-measurements.pdf');
+}
+
 async function corpusMoved(): Promise<void> {
   const corpusOut = join(OUT, 'corpus');
   mkdirSync(corpusOut, { recursive: true });
@@ -117,4 +186,5 @@ async function corpusMoved(): Promise<void> {
 if (!existsSync(FIXTURES)) throw new Error(`fixtures directory missing: ${FIXTURES}`);
 mkdirSync(OUT, { recursive: true });
 await spike01();
-await corpusMoved();
+await spike02();
+if (!process.argv.includes('--spikes-only')) await corpusMoved();
