@@ -6,6 +6,7 @@
 import type {
   CountOptions,
   Markup,
+  MarkupPatch,
   MeasurementOptions,
   PageScale,
   Point,
@@ -24,6 +25,7 @@ import {
   moveMarkup,
   restoreMarkup,
   setPageScale,
+  updateMarkupProperties,
 } from '@redline/pdf-core';
 
 export interface Command {
@@ -170,6 +172,45 @@ export function deleteCommand(doc: RedlineDocument, ids: string[]): Command {
     undo() {
       // Restore in reverse so list/annots indices land where they were.
       for (const id of [...ids].reverse()) restoreMarkup(doc, id);
+    },
+  };
+}
+
+/** Snapshot of the editable properties, for undo. */
+function propertiesOf(m: Markup): MarkupPatch {
+  return {
+    subject: m.text?.subject ?? '',
+    stroke: m.style.stroke ?? { r: 0, g: 0, b: 0 },
+    fill: m.style.fill ?? null,
+    width: m.style.width,
+    opacity: m.style.opacity,
+    dash: m.style.dash ?? [],
+  };
+}
+
+/** Change subject/style on one or more markups; undo restores each one's previous values. */
+export function updateCommand(
+  doc: RedlineDocument,
+  ids: string[],
+  patch: MarkupPatch,
+  label = 'Edit properties',
+): Command {
+  const previous = new Map<string, MarkupPatch>();
+  return {
+    label,
+    do() {
+      for (const id of ids) {
+        const m = doc.markups.find((x) => x.id === id);
+        if (!m) continue;
+        if (!previous.has(id)) previous.set(id, propertiesOf(m));
+        updateMarkupProperties(doc, id, patch);
+      }
+    },
+    undo() {
+      for (const id of [...ids].reverse()) {
+        const was = previous.get(id);
+        if (was) updateMarkupProperties(doc, id, was);
+      }
     },
   };
 }

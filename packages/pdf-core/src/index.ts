@@ -36,6 +36,8 @@ export {
   addCountMarkup,
   countGroupOf,
   moveMarkup,
+  updateMarkupProperties,
+  canRegenerateAppearance,
   captionFor,
   DEFAULT_LENGTH_STYLE,
   DEFAULT_AREA_STYLE,
@@ -49,6 +51,7 @@ export type {
   CountOptions,
   CountStyle,
   CountAttrs,
+  MarkupPatch,
 } from './annots/write.js';
 export { OWNED_KEYS, MUST_NOT_CHANGE_KEYS, isOwnedKey } from './annots/ownership.js';
 export { parseAnnotation, geometryBounds } from './annots/parse.js';

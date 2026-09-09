@@ -630,3 +630,30 @@ button.danger {
 button.danger:hover:not(:disabled) {
   background: #ffebee;
 }
+
+.properties-panel .prop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.properties-panel .prop input {
+  font: inherit;
+  padding: 4px 6px;
+}
+.properties-panel .prop-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.properties-panel .prop-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.properties-panel input[type='number'] {
+  width: 4.5em;
+  font: inherit;
+}
+.properties-panel input[type='range'] {
+  width: 90px;
+}

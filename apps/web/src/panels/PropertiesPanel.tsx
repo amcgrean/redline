@@ -1,49 +1,170 @@
 /**
- * Properties of the selected markup. Read-only until the style/subject writers land in
- * pdf-core (owned keys /Subj, /C, /IC, /CA, /BS with /AP regeneration).
+ * Properties of the selected markup, editable: subject, stroke, fill, line width, opacity.
+ * Each change is one undoable command. A count symbol's subject can be applied to its
+ * whole group (the default), since the group is the quantity.
  */
 
-import { countGroupOf } from '@redline/pdf-core';
+import { useEffect, useState } from 'react';
+import type { RGB } from '@redline/pdf-core';
+import { canRegenerateAppearance, countGroupOf } from '@redline/pdf-core';
 import { actions, useEditor } from '../store';
 
-function rgbCss(c: { r: number; g: number; b: number } | undefined): string | undefined {
-  if (!c) return undefined;
-  const v = (x: number) => Math.round(Math.max(0, Math.min(1, x)) * 255);
-  return `rgb(${v(c.r)}, ${v(c.g)}, ${v(c.b)})`;
+function toHex(c: RGB | undefined): string {
+  if (!c) return '#000000';
+  const v = (x: number) =>
+    Math.round(Math.max(0, Math.min(1, x)) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${v(c.r)}${v(c.g)}${v(c.b)}`;
+}
+
+function fromHex(hex: string): RGB {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
 }
 
 export function PropertiesPanel() {
   const { doc, selectedId, version } = useEditor();
   void version;
   const markup = doc?.markups.find((m) => m.id === selectedId);
-  if (!markup) return <div className="panel-empty">Select a markup to see its properties.</div>;
+  const [subject, setSubject] = useState('');
+  const [applyToGroup, setApplyToGroup] = useState(true);
+
+  useEffect(() => {
+    setSubject(markup?.text?.subject ?? '');
+  }, [markup?.id, markup?.text?.subject]);
+
+  if (!markup || !doc) {
+    return <div className="panel-empty">Select a markup to see its properties.</div>;
+  }
+
+  const group = countGroupOf(markup);
+  const groupIds = group
+    ? doc.markups.filter((m) => countGroupOf(m) === group).map((m) => m.id)
+    : undefined;
+  const targets = () => (group && applyToGroup && groupIds ? groupIds : [markup.id]);
+
+  const commitSubject = () => {
+    const next = subject.trim();
+    if (!next || next === markup.text?.subject) return;
+    actions.updateProperties({ subject: next }, targets(), 'Change subject');
+  };
+
+  const foreign = !canRegenerateAppearance(markup);
 
   const rows: [string, string | undefined][] = [
     ['Type', `${markup.rawSubtype}${markup.intent ? ` / ${markup.intent}` : ''}`],
-    ['Subject', markup.text?.subject],
-    ['Value', countGroupOf(markup) ? '1 (count symbol)' : markup.text?.contents],
+    ['Value', group ? `1 of ${groupIds?.length ?? 1} (count)` : markup.text?.contents],
     ['Page', String(markup.pageIndex + 1)],
     ['Author', markup.text?.author],
     ['Created', markup.text?.created?.toLocaleString()],
     ['Modified', markup.text?.modified?.toLocaleString()],
-    ['Line width', `${markup.style.width} pt`],
-    ['Opacity', `${Math.round(markup.style.opacity * 100)}%`],
     ['Locked', markup.flags.locked ? 'yes' : 'no'],
     ['ID (/NM)', markup.id],
   ];
 
   return (
     <div className="properties-panel">
-      <div className="swatches">
-        <span
-          className="swatch"
-          style={{ background: rgbCss(markup.style.stroke) }}
-          title="Stroke"
+      <label className="prop">
+        Subject
+        <input
+          value={subject}
+          aria-label="Subject"
+          disabled={markup.flags.locked}
+          onChange={(e) => setSubject(e.target.value)}
+          onBlur={commitSubject}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          }}
         />
-        {markup.style.fill && (
-          <span className="swatch" style={{ background: rgbCss(markup.style.fill) }} title="Fill" />
-        )}
+      </label>
+      {group && groupIds && groupIds.length > 1 && (
+        <label className="prop-inline">
+          <input
+            type="checkbox"
+            checked={applyToGroup}
+            onChange={(e) => setApplyToGroup(e.target.checked)}
+          />
+          Apply to all {groupIds.length} in this count
+        </label>
+      )}
+
+      <div className="prop-row">
+        <label className="prop-inline">
+          Stroke
+          <input
+            type="color"
+            aria-label="Stroke colour"
+            value={toHex(markup.style.stroke)}
+            disabled={markup.flags.locked}
+            onChange={(e) =>
+              actions.updateProperties(
+                { stroke: fromHex(e.target.value) },
+                targets(),
+                'Change colour',
+              )
+            }
+          />
+        </label>
+        <label className="prop-inline">
+          Fill
+          <input
+            type="color"
+            aria-label="Fill colour"
+            value={toHex(markup.style.fill ?? markup.style.stroke)}
+            disabled={markup.flags.locked || markup.geometry.kind === 'line'}
+            onChange={(e) =>
+              actions.updateProperties({ fill: fromHex(e.target.value) }, targets(), 'Change fill')
+            }
+          />
+        </label>
       </div>
+      <div className="prop-row">
+        <label className="prop-inline">
+          Width
+          <input
+            type="number"
+            aria-label="Line width"
+            min={0.25}
+            max={20}
+            step={0.25}
+            value={markup.style.width}
+            disabled={markup.flags.locked}
+            onChange={(e) => {
+              const w = Number(e.target.value);
+              if (w > 0) actions.updateProperties({ width: w }, targets(), 'Change width');
+            }}
+          />
+          pt
+        </label>
+        <label className="prop-inline">
+          Opacity
+          <input
+            type="range"
+            aria-label="Opacity"
+            min={10}
+            max={100}
+            step={5}
+            value={Math.round(markup.style.opacity * 100)}
+            disabled={markup.flags.locked}
+            onChange={(e) =>
+              actions.updateProperties(
+                { opacity: Number(e.target.value) / 100 },
+                targets(),
+                'Change opacity',
+              )
+            }
+          />
+          {Math.round(markup.style.opacity * 100)}%
+        </label>
+      </div>
+      {foreign && (
+        <div className="muted small">
+          Style changes on this markup update its properties; its drawing is redrawn by Revu on the
+          next edit there.
+        </div>
+      )}
+
       <dl>
         {rows.map(([k, v]) =>
           v ? (
@@ -67,15 +188,16 @@ export function PropertiesPanel() {
           </dl>
         </>
       )}
-      <div className="muted small">Editing properties arrives with the style writers.</div>
       <button
         type="button"
         className="danger"
         disabled={markup.flags.locked}
-        onClick={() => actions.deleteMarkups([markup.id])}
+        onClick={() => actions.deleteMarkups(group && applyToGroup ? groupIds : [markup.id])}
         title="Delete (Del)"
       >
-        Delete markup
+        {group && applyToGroup && groupIds && groupIds.length > 1
+          ? `Delete all ${groupIds.length} in this count`
+          : 'Delete markup'}
       </button>
     </div>
   );

@@ -713,6 +713,107 @@ function escapeXml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+export interface MarkupPatch {
+  /** `/Subj`. */
+  subject?: string;
+  /** `/C`. */
+  stroke?: RGB;
+  /** `/IC`; `null` removes the fill. */
+  fill?: RGB | null;
+  /** `/BS /W`. */
+  width?: number;
+  /** `/CA`, 0..1. */
+  opacity?: number;
+  /** `/BS /D`; empty array => solid. */
+  dash?: number[];
+}
+
+/** True when Redline can rebuild this markup's appearance from its geometry. */
+export function canRegenerateAppearance(markup: Markup): boolean {
+  if (countGroupOf(markup)) return true;
+  const isMeasurement =
+    markup.intent === 'LineDimension' ||
+    markup.intent === 'PolyLineDimension' ||
+    markup.intent === 'PolygonDimension';
+  return isMeasurement && (markup.geometry.kind === 'line' || markup.geometry.kind === 'poly');
+}
+
+/**
+ * Change a markup's subject and/or style. Rewrites only owned keys (PLAN §3.4) and bumps
+ * `/M`. The `/AP` is regenerated when Redline can draw the markup; otherwise the existing
+ * appearance stream is kept — the dictionary is right and Revu regenerates its own AP on
+ * edit, but Chrome/Acrobat will show the old colours until then (ASSUMED acceptable for
+ * foreign markups; Phase 2 AP generators per subtype close this gap).
+ */
+export function updateMarkupProperties(
+  doc: RedlineDocument,
+  id: string,
+  patch: MarkupPatch,
+  now: Date = new Date(),
+): Markup {
+  const markup = requireMarkup(doc, id);
+  const context = doc.pdfDoc.context;
+  const raw = markup.raw;
+  ensureNM(doc, markup);
+
+  if (patch.subject !== undefined) {
+    raw.set(PDFName.of('Subj'), PDFString.of(patch.subject));
+    markup.text = { contents: '', author: '', ...markup.text, subject: patch.subject };
+  }
+  if (patch.stroke) {
+    raw.set(PDFName.of('C'), colorArray(context, patch.stroke));
+    markup.style.stroke = patch.stroke;
+  }
+  if (patch.fill === null) {
+    raw.delete(PDFName.of('IC'));
+    delete markup.style.fill;
+  } else if (patch.fill) {
+    raw.set(PDFName.of('IC'), colorArray(context, patch.fill));
+    markup.style.fill = patch.fill;
+  }
+  if (patch.opacity !== undefined) {
+    const opacity = Math.max(0, Math.min(1, patch.opacity));
+    raw.set(PDFName.of('CA'), PDFNumber.of(round(opacity)));
+    markup.style.opacity = opacity;
+  }
+  if (patch.width !== undefined || patch.dash !== undefined) {
+    const width = patch.width ?? markup.style.width;
+    const dash = patch.dash ?? markup.style.dash;
+    raw.set(PDFName.of('BS'), borderStyle(context, width, dash));
+    markup.style.width = width;
+    if (dash && dash.length) markup.style.dash = dash;
+    else delete markup.style.dash;
+  }
+
+  if (canRegenerateAppearance(markup)) {
+    if (countGroupOf(markup)) {
+      const rect = markup.rect;
+      const radius = (rect[2] - rect[0]) / 2 - Math.max(markup.style.width, 1);
+      const appearance = buildCircleAppearance({
+        center: { x: (rect[0] + rect[2]) / 2, y: (rect[1] + rect[3]) / 2 },
+        radius: Math.max(1, radius),
+        stroke: markup.style.stroke ?? DEFAULT_COUNT_STYLE.stroke,
+        fill: markup.style.fill ?? DEFAULT_COUNT_STYLE.fill,
+        width: markup.style.width,
+        opacity: markup.style.opacity,
+        fillOpacity: markup.style.fillOpacity ?? DEFAULT_COUNT_STYLE.fillOpacity,
+      });
+      markup.rect = attachAppearance(context, raw, appearance, {
+        stroke: markup.style.opacity,
+        fill: markup.style.fillOpacity ?? DEFAULT_COUNT_STYLE.fillOpacity,
+      });
+      markup.geometry = { kind: 'rect', rect: markup.rect };
+    } else {
+      refreshMeasurement(doc, markup, styleFromMarkup(markup), 'move');
+    }
+  }
+
+  raw.set(PDFName.of('M'), PDFString.of(pdfDate(now)));
+  if (markup.text) markup.text.modified = now;
+  markChanged(doc, markup.ref);
+  return markup;
+}
+
 /** Assign a real `/NM` to a markup that was loaded without one. Never changes an existing one. */
 function ensureNM(doc: RedlineDocument, markup: Markup): void {
   if (!isPlaceholderId(markup.id)) return;

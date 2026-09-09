@@ -10,7 +10,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Markup, PageScale, Point, Scale, UnitFormat } from '@redline/pdf-core';
+import type { Markup, MarkupPatch, PageScale, Point, Scale, UnitFormat } from '@redline/pdf-core';
 import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
@@ -43,6 +43,7 @@ import {
   calibratePagesCommand,
   deleteCommand,
   moveCommand,
+  updateCommand,
 } from './commands';
 import type { FindHit } from '../text/textIndex';
 import { printDocument } from '../print';
@@ -542,6 +543,18 @@ export const actions = {
     bump({ status: `Moved ${id}` });
   },
 
+  /** Edit subject/style of the given markups (default: the selection). */
+  updateProperties(patch: MarkupPatch, ids?: string[], label?: string): void {
+    const session = getSession();
+    if (!session) return;
+    const selected = useEditorStore.getState().selectedId;
+    const targets = ids ?? (selected ? [selected] : []);
+    if (targets.length === 0) return;
+    const command = updateCommand(session.doc, targets, patch, label);
+    session.history.run(command);
+    bump({ status: command.label });
+  },
+
   /** Delete the selected markup (or the given ids). */
   deleteMarkups(ids?: string[]): void {
     const session = getSession();
@@ -562,14 +575,16 @@ export const actions = {
     const session = getSession();
     const command = session?.history.undo();
     if (!command) return;
-    bump({ selectedId: undefined, status: `Undo ${command.label}` });
+    // Keep the selection: a property edit undone should stay editable. A markup that
+    // no longer exists simply reads as unselected.
+    bump({ status: `Undo ${command.label}` });
   },
 
   redo(): void {
     const session = getSession();
     const command = session?.history.redo();
     if (!command) return;
-    bump({ selectedId: undefined, status: `Redo ${command.label}` });
+    bump({ status: `Redo ${command.label}` });
   },
 
   async save(
