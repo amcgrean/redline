@@ -284,6 +284,7 @@ export function App() {
     showThumbnails,
     autosave,
     showHelp,
+    snapEnabled,
   } = state;
 
   useEffect(() => {
@@ -593,6 +594,15 @@ export function App() {
           title="Ctrl+S"
         >
           Save{dirty ? ' *' : ''}
+        </button>
+        <button
+          type="button"
+          onClick={() => actions.toggleSnap()}
+          aria-pressed={snapEnabled}
+          className={snapEnabled ? 'active' : ''}
+          title="Snap to endpoints and midpoints while drawing (hold Alt to override, Shift to constrain)"
+        >
+          Snap
         </button>
         <button
           type="button"

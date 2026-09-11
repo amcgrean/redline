@@ -27,6 +27,8 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Delete', 'Delete selection'],
       ['Ctrl+A', 'Select all on page'],
       ['Shift+click / drag on empty space', 'Add to selection / marquee'],
+      ['Shift while drawing', 'Constrain to 45° / square'],
+      ['Alt while drawing', 'Override snap for that point'],
       ['Double-click text', 'Edit text'],
       ['Enter / Esc', 'Finish / cancel a shape'],
       ['Ctrl+S', 'Save'],

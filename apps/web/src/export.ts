@@ -8,6 +8,7 @@
 
 import type { Markup, RedlineDocument } from '@redline/pdf-core';
 import { countGroupOf } from '@redline/pdf-core';
+import { buildXlsx, type Cell } from './xlsx';
 
 export interface ExportRow {
   subject: string;
@@ -132,14 +133,100 @@ export function markupsCsv(doc: RedlineDocument): string {
   return lines.join('\r\n') + '\r\n';
 }
 
-/** Trigger a browser download of the CSV. */
-export function downloadMarkupsCsv(doc: RedlineDocument, fileName: string): void {
-  const csv = markupsCsv(doc);
-  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+const HEADER = [
+  'Subject',
+  'Page',
+  'Type',
+  'Value',
+  'Length (ft)',
+  'Area (sf)',
+  'Count',
+  'Author',
+  'Modified',
+  'ID',
+];
+
+/** Subtotals per subject: rows, length, area, count. */
+export function subjectTotals(
+  rows: ExportRow[],
+): { subject: string; rows: number; lengthFt: number; areaSf: number; count: number }[] {
+  const bySubject = new Map<string, ExportRow[]>();
+  for (const r of rows) {
+    const list = bySubject.get(r.subject) ?? [];
+    list.push(r);
+    bySubject.set(r.subject, list);
+  }
+  const num = (v: number | '') => (v === '' ? 0 : v);
+  return [...bySubject.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([subject, group]) => ({
+      subject,
+      rows: group.length,
+      lengthFt: round(group.reduce((acc, r) => acc + num(r.lengthFt), 0)),
+      areaSf: round(group.reduce((acc, r) => acc + num(r.areaSf), 0)),
+      count: group.reduce((acc, r) => acc + num(r.count), 0),
+    }));
+}
+
+/** Two sheets: every markup, and a subtotal per subject. */
+export function markupsXlsx(doc: RedlineDocument): Uint8Array {
+  const rows = markupRows(doc);
+  const markups: Cell[][] = [
+    HEADER,
+    ...rows.map((r) => [
+      r.subject,
+      r.page,
+      r.type,
+      r.value,
+      r.lengthFt,
+      r.areaSf,
+      r.count,
+      r.author,
+      r.modified,
+      r.id,
+    ]),
+  ];
+  const totals: Cell[][] = [
+    ['Subject', 'Markups', 'Length (ft)', 'Area (sf)', 'Count'],
+    ...subjectTotals(rows).map((t) => [
+      t.subject,
+      t.rows,
+      t.lengthFt || '',
+      t.areaSf || '',
+      t.count || '',
+    ]),
+  ];
+  return buildXlsx([
+    { name: 'Markups', rows: markups },
+    { name: 'Subtotals', rows: totals },
+  ]);
+}
+
+function download(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${fileName.replace(/\.pdf$/i, '')}.markups.csv`;
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/** Trigger a browser download of the CSV. */
+export function downloadMarkupsCsv(doc: RedlineDocument, fileName: string): void {
+  const csv = markupsCsv(doc);
+  download(
+    new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }),
+    `${fileName.replace(/\.pdf$/i, '')}.markups.csv`,
+  );
+}
+
+/** Trigger a browser download of the XLSX. */
+export function downloadMarkupsXlsx(doc: RedlineDocument, fileName: string): void {
+  const bytes = markupsXlsx(doc);
+  download(
+    new Blob([bytes as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+    `${fileName.replace(/\.pdf$/i, '')}.markups.xlsx`,
+  );
 }

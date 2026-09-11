@@ -24,6 +24,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'web',
+          root: './apps/web',
+          include: ['test/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        test: {
           name: 'corpus',
           root: './packages/pdf-core',
           include: ['test/corpus.test.ts'],

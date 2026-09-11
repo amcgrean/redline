@@ -871,3 +871,39 @@ button.danger:hover:not(:disabled) {
 .shortcut-groups dd {
   margin: 0;
 }
+
+/* Markups List: sort headers and filter row. */
+.markups-filter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid #eee;
+  font-size: 12px;
+}
+.markups-filter input[type='search'] {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 2px 6px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+}
+table.markups th button {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+table.markups th button:hover {
+  text-decoration: underline;
+}
+table.markups th .sort-arrow {
+  color: #0288d1;
+  font-size: 10px;
+}
+.toolbar button.active {
+  background: #e3f2fd;
+  border-color: #0288d1;
+}

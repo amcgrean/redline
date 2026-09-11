@@ -24,6 +24,8 @@ import { renderApBitmap, type ApBitmap } from './apBitmap';
 import { CalibrateDialog } from './CalibrateDialog';
 import { TextEditor } from './TextEditor';
 import { ContextMenu, type MenuItem } from './ContextMenu';
+import { constrainAngle, constrainSquare, nearestCandidate, snapCandidates } from './snap';
+import type { SnapCandidate } from './snap';
 
 interface Box {
   left: number;
@@ -49,7 +51,7 @@ const HANDLE = 8;
 const DRAFT_COLOR = '#d32f2f';
 
 export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
-  const { doc, tool, selectedIds, version, spacePan } = useEditor();
+  const { doc, tool, selectedIds, version, spacePan, snapEnabled } = useEditor();
   const panning = tool === 'pan' || spacePan;
   const [draft, setDraftState] = useState<Point[]>([]);
   // Mirror of `draft` for handlers that fire in the same tick as a state update (Konva
@@ -68,6 +70,10 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const justMarqueed = useRef(false);
   const [calibrating, setCalibrating] = useState<[Point, Point] | undefined>();
   const [menu, setMenu] = useState<{ x: number; y: number; markupId?: string } | undefined>();
+  /** The snap point the pointer is currently on, for the indicator. */
+  const [snapHit, setSnapHit] = useState<Point | undefined>();
+  const snapHitRef = useRef<Point | undefined>(undefined);
+  const snapCache = useRef<{ key: string; list: SnapCandidate[] }>({ key: '', list: [] });
   void version; // re-render on every mutation
 
   const toPx = (p: Point): [number, number] => {
@@ -127,13 +133,88 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     setDraft([]);
     setCalloutTarget(undefined);
     setEditor(undefined);
+    snapHitRef.current = undefined;
+    setSnapHit(undefined);
   }, [tool]);
 
-  const pointerPdf = (event: KonvaEventObject<MouseEvent>): Point | undefined => {
+  const rawPointerPdf = (event: KonvaEventObject<MouseEvent>): Point | undefined => {
     const stage = event.target.getStage();
     const pos = stage?.getPointerPosition();
     if (!pos) return undefined;
     return toPdf(pos.x + visible.left, pos.y + visible.top);
+  };
+
+  /** Tools whose points snap and constrain. Freehand, counts and notes place as clicked. */
+  const snappingTool =
+    tool !== 'select' &&
+    tool !== 'text' &&
+    tool !== 'pan' &&
+    tool !== 'count' &&
+    tool !== 'note' &&
+    tool !== 'pen' &&
+    tool !== 'highlighter';
+
+  /** Snap targets on this page, rebuilt when the document changes. */
+  const candidates = (excludeId?: string): SnapCandidate[] => {
+    if (!doc || !snapEnabled) return [];
+    const key = `${version}:${pageIndex}:${excludeId ?? ''}`;
+    if (snapCache.current.key !== key) {
+      snapCache.current = {
+        key,
+        list: snapCandidates(
+          doc.markups.filter((m) => m.pageIndex === pageIndex),
+          excludeId,
+        ),
+      };
+    }
+    return snapCache.current.list;
+  };
+  /** 10 screen pixels in user space. */
+  const snapTolerance = (): number => {
+    const o = toPdf(0, 0);
+    const q = toPdf(10, 0);
+    return Math.hypot(q.x - o.x, q.y - o.y);
+  };
+  const showSnapHit = (hit: Point | undefined) => {
+    const was = snapHitRef.current;
+    if (was === hit || (was && hit && was.x === hit.x && was.y === hit.y)) return;
+    snapHitRef.current = hit;
+    setSnapHit(hit);
+  };
+
+  /** Snap (unless Alt) then constrain (Shift) a pointer position against the draft in progress. */
+  const adjust = (raw: Point, evt: MouseEvent): Point => {
+    if (!snappingTool) return raw;
+    let p = raw;
+    let hit: Point | undefined;
+    if (!evt.altKey) {
+      const near = nearestCandidate(raw, candidates(), snapTolerance());
+      if (near) {
+        p = { x: near.point.x, y: near.point.y }; // a copy: never share a vertex object
+        hit = p;
+      }
+    }
+    const inDrag = dragDraft.current;
+    const anchor = inDrag ? inDrag[0] : draftRef.current[draftRef.current.length - 1];
+    if (evt.shiftKey && anchor) {
+      p = inDrag ? constrainSquare(anchor, p) : constrainAngle(anchor, p);
+      if (hit && (hit.x !== p.x || hit.y !== p.y)) hit = undefined;
+    }
+    showSnapHit(hit);
+    return p;
+  };
+
+  /** Pointer in user space, snapped and constrained for drawing tools. */
+  const pointerPdf = (event: KonvaEventObject<MouseEvent>): Point | undefined => {
+    const raw = rawPointerPdf(event);
+    return raw ? adjust(raw, event.evt) : raw;
+  };
+
+  /** Vertex-handle drags snap to other markups (never to the markup being edited). */
+  const snapVertex = (id: string, p: Point, evt: MouseEvent): Point => {
+    if (!snapEnabled || evt.altKey) return p;
+    const near = nearestCandidate(p, candidates(id), snapTolerance());
+    return near ? { x: near.point.x, y: near.point.y } : p;
   };
 
   /** Complete the multi-vertex tool in progress, if it has enough vertices. */
@@ -482,6 +563,8 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 toPx={toPx}
                 toPdf={toPdf}
                 zoom={viewport.scale}
+                snap={snapVertex}
+                interactive={tool === 'select'}
               />
             ))}
             {marquee && (
@@ -546,6 +629,18 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 />
               );
             })}
+            {snapHit && (
+              <Rect
+                x={toPx(snapHit)[0] - 5}
+                y={toPx(snapHit)[1] - 5}
+                width={10}
+                height={10}
+                stroke={SELECT_COLOR}
+                strokeWidth={1.5}
+                listening={false}
+                name="snap-indicator"
+              />
+            )}
             {draftLabel && draftPoints[draftPoints.length - 1] && (
               <Text
                 x={toPx(hover ?? draftPoints[draftPoints.length - 1]!)[0] + 8}
@@ -618,6 +713,9 @@ interface ShapeProps {
   toPx: (p: Point) => [number, number];
   toPdf: (x: number, y: number) => Point;
   zoom: number;
+  snap: (id: string, p: Point, evt: MouseEvent) => Point;
+  /** Only the Select tool hits markups; drawing tools click through to the page. */
+  interactive: boolean;
 }
 
 function rectPx(rect: PdfRect, toPx: (p: Point) => [number, number]): Box {
@@ -631,7 +729,16 @@ function rectPx(rect: PdfRect, toPx: (p: Point) => [number, number]): Box {
   };
 }
 
-function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapeProps) {
+function MarkupShape({
+  markup,
+  selected,
+  draggable,
+  toPx,
+  toPdf,
+  zoom,
+  snap,
+  interactive,
+}: ShapeProps) {
   const groupRef = useRef<Konva.Group>(null);
   const { style, geometry } = markup;
   const strokeWidth = Math.max(0.75, style.width * zoom);
@@ -792,7 +899,13 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
   const selBox = rectPx(markup.render === 'ap-bitmap' ? markup.rect : geometryBounds(markup), toPx);
 
   return (
-    <Group ref={groupRef} draggable={draggable} onDragEnd={onDragEnd} onClick={onSelect}>
+    <Group
+      ref={groupRef}
+      draggable={draggable}
+      onDragEnd={onDragEnd}
+      onClick={onSelect}
+      listening={interactive}
+    >
       {body}
       {caption && captionAt && markup.render === 'native' && (
         <Text
@@ -819,7 +932,9 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
           listening={false}
         />
       )}
-      {selected && draggable && <Handles markup={markup} toPx={toPx} toPdf={toPdf} zoom={zoom} />}
+      {selected && draggable && (
+        <Handles markup={markup} toPx={toPx} toPdf={toPdf} zoom={zoom} snap={snap} />
+      )}
     </Group>
   );
 }
@@ -963,11 +1078,13 @@ function Handles({
   toPx,
   toPdf,
   zoom,
+  snap,
 }: {
   markup: Markup;
   toPx: (p: Point) => [number, number];
   toPdf: (x: number, y: number) => Point;
   zoom: number;
+  snap: (id: string, p: Point, evt: MouseEvent) => Point;
 }) {
   void zoom;
   const { geometry } = markup;
@@ -1003,7 +1120,11 @@ function Handles({
               y={y - size / 2}
               onDragEnd={(e) => {
                 const node = e.target;
-                const moved = toPdf(node.x() + size / 2, node.y() + size / 2);
+                const moved = snap(
+                  markup.id,
+                  toPdf(node.x() + size / 2, node.y() + size / 2),
+                  e.evt,
+                );
                 node.position({ x: x - size / 2, y: y - size / 2 });
                 const next = points.map((q, j) => (j === i ? moved : q));
                 if (geometry.kind === 'line') {
@@ -1052,7 +1173,11 @@ function Handles({
               y={y - size / 2}
               onDragEnd={(e) => {
                 const node = e.target;
-                const moved = toPdf(node.x() + size / 2, node.y() + size / 2);
+                const moved = snap(
+                  markup.id,
+                  toPdf(node.x() + size / 2, node.y() + size / 2),
+                  e.evt,
+                );
                 node.position({ x: x - size / 2, y: y - size / 2 });
                 const ox = i === 0 || i === 3 ? x1 : x0; // the opposite corner stays put
                 const oy = i === 0 || i === 1 ? y1 : y0;

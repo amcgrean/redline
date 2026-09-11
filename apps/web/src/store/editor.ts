@@ -148,6 +148,8 @@ export interface EditorUiState {
   clipboard: { ids: string[]; page: number };
   /** `?` overlay. */
   showHelp: boolean;
+  /** Snap to endpoints/midpoints while drawing (Alt overrides for one point). */
+  snapEnabled: boolean;
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
   spacePan: boolean;
   /** Bumps on every document mutation so subscribers re-render. */
@@ -184,6 +186,7 @@ export const useEditorStore = create<EditorUiState>()(
     spacePan: false,
     clipboard: { ids: [], page: 0 },
     showHelp: false,
+    snapEnabled: true,
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -947,6 +950,13 @@ export const actions = {
     const command = lockCommand(session.doc, ids, locked);
     session.history.run(command);
     bump({ status: command.label });
+  },
+
+  toggleSnap(): void {
+    set((s) => {
+      s.snapEnabled = !s.snapEnabled;
+      s.status = s.snapEnabled ? 'Snap on' : 'Snap off';
+    });
   },
 
   toggleHelp(show?: boolean): void {
