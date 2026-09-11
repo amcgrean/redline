@@ -9,6 +9,7 @@ import { PDFName } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';
 import { addShapeMarkup } from '../src/annots/shapes.js';
+import { cloudArcs, cloudOutline } from '../src/annots/ap/shapes.js';
 import {
   moveMarkup,
   setMarkupGeometry,
@@ -226,5 +227,133 @@ describe('shape appearances render in pdf.js', () => {
     const without = await renderPng(bytes, { scale: 0.25, annotations: false });
     expect(inkCoverage(withAnnots)).toBeGreaterThan(inkCoverage(without) + 500);
     expectPngSnapshot(withAnnots, join(SNAPSHOTS, 'ap-shapes.png'));
+  });
+});
+
+describe('cloud and highlighter', () => {
+  const square = [
+    { x: 300, y: 300 },
+    { x: 900, y: 300 },
+    { x: 900, y: 700 },
+    { x: 300, y: 700 },
+  ];
+
+  it('cloud: /Polygon + /IT /PolygonCloud + /BE cloudy, arcs in the AP, regenerable', async () => {
+    const doc = await openDocument(await blankArchD());
+    const m = addShapeMarkup(
+      doc,
+      0,
+      { kind: 'cloud', points: square },
+      {
+        ...opts,
+        style: { stroke: { r: 1, g: 0, b: 0 }, width: 2, cloudIntensity: 1 },
+      },
+    );
+    expect(m.rawSubtype).toBe('Polygon');
+    expect(lookupName(m.raw, 'IT')).toBe('PolygonCloud');
+    expect(m.raw.lookup(PDFName.of('BE'))?.toString().replace(/\s+/g, ' ')).toContain('/S /C');
+    expect(m.style.cloud).toEqual({ intensity: 1 });
+    expect(canRegenerateAppearance(m)).toBe(true);
+    // /Rect is padded out by the scallops.
+    expect(m.rect[0]).toBeLessThan(300);
+    const { bytes } = await saveIncremental(doc);
+    const back = (await openDocument(bytes)).markups[0]!;
+    expect(back.intent).toBe('PolygonCloud');
+    expect(back.style.cloud?.intensity).toBe(1);
+    expect(canRegenerateAppearance(back)).toBe(true);
+  });
+
+  it('cloud arcs bulge outward regardless of winding', () => {
+    const ccw = cloudArcs(square, 12);
+    const cw = cloudArcs([...square].reverse(), 12);
+    expect(ccw.length).toBeGreaterThan(8);
+    expect(cw.length).toBe(ccw.length);
+    // Every sampled point lies outside the square, except the 200-degree arc ends which
+    // dip in by at most sin(10 deg) * r so neighbouring scallops overlap.
+    const dip = 12 * Math.sin(Math.PI / 18) + 0.01;
+    for (const p of [...cloudOutline(square, 12), ...cloudOutline([...square].reverse(), 12)]) {
+      const inside = p.x > 300 + dip && p.x < 900 - dip && p.y > 300 + dip && p.y < 700 - dip;
+      expect(inside).toBe(false);
+    }
+  });
+
+  it('highlighter: Ink with /BM /Multiply and a multiply ExtGState', async () => {
+    const doc = await openDocument(await blankArchD());
+    const m = addShapeMarkup(
+      doc,
+      0,
+      {
+        kind: 'highlighter',
+        paths: [
+          [
+            { x: 100, y: 1000 },
+            { x: 800, y: 1000 },
+          ],
+        ],
+      },
+      opts,
+    );
+    expect(m.rawSubtype).toBe('Ink');
+    expect(lookupName(m.raw, 'BM')).toBe('Multiply');
+    expect(m.style.blend).toBe('Multiply');
+    expect(m.style.width).toBe(14);
+    const ap = serializeDict(m.raw, doc.pdfDoc.context, SNAPSHOT_OPTIONS);
+    expect(ap).toContain('/BM /Multiply');
+    expect(ap).toContain('/GSa gs');
+    const { bytes } = await saveIncremental(doc);
+    const back = (await openDocument(bytes)).markups[0]!;
+    expect(back.style.blend).toBe('Multiply');
+  });
+
+  it('renders a cloud and a highlighter', async () => {
+    const doc = await openDocument(await blankArchD());
+    addShapeMarkup(
+      doc,
+      0,
+      { kind: 'cloud', points: square },
+      {
+        ...opts,
+        style: {
+          stroke: { r: 0.8, g: 0, b: 0 },
+          width: 3,
+          fill: { r: 1, g: 0.9, b: 0.9 },
+          fillOpacity: 0.5,
+        },
+      },
+    );
+    addShapeMarkup(
+      doc,
+      0,
+      {
+        kind: 'cloud',
+        points: [
+          { x: 1200, y: 400 },
+          { x: 1700, y: 500 },
+          { x: 1900, y: 900 },
+          { x: 1400, y: 1000 },
+          { x: 1100, y: 700 },
+        ],
+      },
+      { ...opts, style: { stroke: { r: 0, g: 0.3, b: 0.8 }, width: 2, cloudIntensity: 2 } },
+    );
+    addShapeMarkup(
+      doc,
+      0,
+      {
+        kind: 'highlighter',
+        paths: [
+          [
+            { x: 200, y: 1300 },
+            { x: 1800, y: 1300 },
+          ],
+        ],
+      },
+      opts,
+    );
+    const { bytes } = await saveIncremental(doc);
+    const withAnnots = await renderPng(bytes, { scale: 0.25, annotations: true });
+    const without = await renderPng(bytes, { scale: 0.25, annotations: false });
+    expect(inkCoverage(withAnnots)).toBeGreaterThan(inkCoverage(without) + 500);
+    expectPngSnapshot(withAnnots, join(SNAPSHOTS, 'ap-cloud.png'), 0.01);
   });
 });

@@ -20,6 +20,7 @@ export {
   shapeAppearance,
   shapeBounds,
   DEFAULT_SHAPE_STYLE,
+  DEFAULT_HIGHLIGHTER_STYLE,
 } from './annots/shapes.js';
 export type { ShapeKind, ShapeStyle, ShapeOptions, ShapeGeometry } from './annots/shapes.js';
 export {
@@ -39,7 +40,12 @@ export {
   buildRectAppearance,
   buildEllipseAppearance,
   buildInkAppearance,
+  buildCloudAppearance,
+  cloudArcs,
+  cloudOutline,
+  cloudRadius,
 } from './annots/ap/shapes.js';
+export type { CloudArc } from './annots/ap/shapes.js';
 export { buildMeasureDict } from './measure/measureDict.js';
 export { computeMeasurement } from './measure/compute.js';
 export {

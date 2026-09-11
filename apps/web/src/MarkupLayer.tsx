@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Group, Line, Rect, Ellipse, Text, Image as KImage } from 'react-konva';
-import { countGroupOf } from '@redline/pdf-core';
+import { cloudOutline, cloudRadius, countGroupOf } from '@redline/pdf-core';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Markup, Point, Rect as PdfRect, RGB } from '@redline/pdf-core';
@@ -79,14 +79,23 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const pointsPx = (points: readonly Point[]): number[] => points.flatMap(toPx);
 
   const isPolyTool =
-    tool === 'area' || tool === 'polylength' || tool === 'perimeter' || tool === 'polygon';
+    tool === 'area' ||
+    tool === 'polylength' ||
+    tool === 'perimeter' ||
+    tool === 'polygon' ||
+    tool === 'cloud';
   const closesDraft =
-    tool === 'area' || tool === 'perimeter' || tool === 'rectarea' || tool === 'polygon';
+    tool === 'area' ||
+    tool === 'perimeter' ||
+    tool === 'rectarea' ||
+    tool === 'polygon' ||
+    tool === 'cloud';
   /** Press-drag-release tools. */
   const isDragTool =
     tool === 'rectangle' ||
     tool === 'ellipse' ||
     tool === 'pen' ||
+    tool === 'highlighter' ||
     tool === 'textbox' ||
     (tool === 'callout' && calloutTarget !== undefined);
   const dragDraft = useRef<Point[] | undefined>(undefined);
@@ -134,6 +143,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     else if (tool === 'perimeter') actions.addPolyline(pageIndex, points, true);
     else if (tool === 'polylength') actions.addPolyline(pageIndex, points, false);
     else if (tool === 'polygon') actions.addShape(pageIndex, { kind: 'polygon', points });
+    else if (tool === 'cloud') actions.addShape(pageIndex, { kind: 'cloud', points });
   };
 
   /** Drop a trailing vertex that repeats the one before it (a double-click's second click). */
@@ -215,7 +225,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       return;
     }
     if (isPolyTool) {
-      if (tool !== 'polygon' && !doc?.pageScales.get(pageIndex)) {
+      if (tool !== 'polygon' && tool !== 'cloud' && !doc?.pageScales.get(pageIndex)) {
         actions.setStatus('Calibrate this page first');
         return;
       }
@@ -302,9 +312,9 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       setDraft([]);
       const end = pointerPdf(event) ?? dd[dd.length - 1]!;
       const start = dd[0]!;
-      if (tool === 'pen') {
+      if (tool === 'pen' || tool === 'highlighter') {
         const path = dd.length > 1 ? dd : [start, end];
-        actions.addShape(pageIndex, { kind: 'pen', paths: [path] });
+        actions.addShape(pageIndex, { kind: tool, paths: [path] });
         return;
       }
       const [sx, sy] = toPx(start);
@@ -365,7 +375,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     if (dragDraft.current) {
       const p = pointerPdf(event);
       if (!p) return;
-      if (tool === 'pen') {
+      if (tool === 'pen' || tool === 'highlighter') {
         dragDraft.current.push(p);
         setDraft([...dragDraft.current]);
       } else {
@@ -483,6 +493,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
             {tool !== 'ellipse' && draftPoints.length > 0 && (
               <Line
                 points={pointsPx(draftPoints)}
+                globalCompositeOperation={tool === 'highlighter' ? 'multiply' : 'source-over'}
                 stroke={DRAFT_COLOR}
                 strokeWidth={2}
                 dash={[6, 4]}
@@ -630,7 +641,14 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
     );
     captionAt = [(pts[0]! + pts[2]!) / 2, (pts[1]! + pts[3]!) / 2 - 14];
   } else if (geometry.kind === 'poly') {
-    const pts = geometry.points.flatMap(toPx);
+    const isCloud = markup.intent === 'PolygonCloud' || !!style.cloud;
+    const pts = isCloud
+      ? cloudOutline(
+          geometry.points,
+          cloudRadius(style.width, style.cloud?.intensity ?? 1),
+          6,
+        ).flatMap(toPx)
+      : geometry.points.flatMap(toPx);
     body = (
       <Line
         points={pts}
@@ -659,6 +677,7 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
             lineCap="round"
             lineJoin="round"
             tension={0.2}
+            globalCompositeOperation={style.blend === 'Multiply' ? 'multiply' : 'source-over'}
           />
         ))}
       </>

@@ -97,6 +97,9 @@ function parseStyle(dict: PDFDict): MarkupStyle {
   if (dashArray && dashArray.length) style.dash = dashArray;
   const ends = parseLineEndings(dict);
   if (ends) style.lineEnds = ends;
+  if (lookupName(dict, 'BM') === 'Multiply') style.blend = 'Multiply';
+  const be = lookupDict(dict, 'BE');
+  if (be && lookupName(be, 'S') === 'C') style.cloud = { intensity: lookupNumber(be, 'I') ?? 1 };
   return style;
 }
 

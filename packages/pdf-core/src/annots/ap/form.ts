@@ -35,12 +35,18 @@ function helveticaFontDict(context: PDFContext): PDFDict {
   return font;
 }
 
-/** `<< /Type /ExtGState /CA a /ca a >>` — stroke and fill alpha. */
-function alphaExtGState(context: PDFContext, strokeAlpha: number, fillAlpha: number): PDFDict {
+/** `<< /Type /ExtGState /CA a /ca a [/BM /Multiply] >>` — alpha and, for highlighters, blend. */
+function alphaExtGState(
+  context: PDFContext,
+  strokeAlpha: number,
+  fillAlpha: number,
+  blend?: 'Multiply',
+): PDFDict {
   const gs = context.obj({}) as PDFDict;
   gs.set(PDFName.of('Type'), PDFName.of('ExtGState'));
   gs.set(PDFName.of('CA'), PDFNumber.of(round(strokeAlpha)));
   gs.set(PDFName.of('ca'), PDFNumber.of(round(fillAlpha)));
+  if (blend) gs.set(PDFName.of('BM'), PDFName.of(blend));
   return gs;
 }
 
@@ -51,8 +57,8 @@ export interface FormXObjectOptions {
   content: string;
   /** Include the Helvetica font resource (needed whenever a caption is drawn). */
   withFont?: boolean;
-  /** When set, adds an `/ExtGState` named `ALPHA_GS` with these alphas. */
-  alpha?: { stroke: number; fill: number };
+  /** When set, adds an `/ExtGState` named `ALPHA_GS` with these alphas (and blend mode). */
+  alpha?: { stroke: number; fill: number; blend?: 'Multiply' };
 }
 
 /**
@@ -76,7 +82,9 @@ export function buildFormXObject(context: PDFContext, options: FormXObjectOption
     const states = context.obj({}) as PDFDict;
     states.set(
       PDFName.of(ALPHA_GS),
-      context.register(alphaExtGState(context, options.alpha.stroke, options.alpha.fill)),
+      context.register(
+        alphaExtGState(context, options.alpha.stroke, options.alpha.fill, options.alpha.blend),
+      ),
     );
     resources.set(PDFName.of('ExtGState'), states);
   }

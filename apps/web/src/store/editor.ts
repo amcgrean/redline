@@ -96,7 +96,9 @@ export type Tool =
   | 'pen'
   | 'textbox'
   | 'callout'
-  | 'note';
+  | 'note'
+  | 'cloud'
+  | 'highlighter';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -1043,12 +1045,15 @@ const SHAPE_LABEL: Record<ShapeGeometry['kind'], string> = {
   arrow: 'Arrow',
   polyline: 'Polyline',
   polygon: 'Polygon',
+  cloud: 'Cloud',
   pen: 'Pen',
+  highlighter: 'Highlight',
 };
 
 function shapeStyleOf(tool: ChestTool): Partial<ShapeStyle> {
   const s = tool.style;
   return {
+    ...(tool.kind === 'highlighter' && { blend: 'Multiply' as const }),
     stroke: fromHex(s.stroke),
     ...(s.fill && { fill: fromHex(s.fill) }),
     ...(s.fillOpacity !== undefined && { fillOpacity: s.fillOpacity }),
@@ -1083,9 +1088,9 @@ function toolKindOf(m: Markup): ChestTool['kind'] | undefined {
     case 'Line':
       return m.intent === 'LineArrow' ? 'arrow' : 'line';
     case 'Polygon':
-      return 'polygon';
+      return m.intent === 'PolygonCloud' || m.style.cloud ? 'cloud' : 'polygon';
     case 'Ink':
-      return 'pen';
+      return m.style.blend === 'Multiply' ? 'highlighter' : 'pen';
     default:
       return undefined;
   }

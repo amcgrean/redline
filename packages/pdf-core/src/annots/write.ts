@@ -719,8 +719,13 @@ function isMeasurementMarkup(markup: Markup): boolean {
  */
 function isRedlineShape(markup: Markup): boolean {
   const g = markup.geometry;
-  // A cloud or other border effect is drawn by its author; redrawing it plain would lose it.
-  if (markup.raw.has(PDFName.of('BE'))) return false;
+  // A border effect we cannot draw is left to its author; a cloudy Polygon we can redraw.
+  if (
+    markup.raw.has(PDFName.of('BE')) &&
+    !(markup.rawSubtype === 'Polygon' && markup.style.cloud)
+  ) {
+    return false;
+  }
   switch (markup.rawSubtype) {
     case 'Square':
     case 'Circle':

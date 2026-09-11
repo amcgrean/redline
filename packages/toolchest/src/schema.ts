@@ -41,6 +41,8 @@ export const ToolKindSchema = z.enum([
   'textbox',
   'callout',
   'note',
+  'cloud',
+  'highlighter',
 ]);
 export type ToolKind = z.infer<typeof ToolKindSchema>;
 

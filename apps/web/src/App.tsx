@@ -74,6 +74,16 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
   },
   { id: 'pen', label: 'Pen (P)', hint: 'Press and drag to draw freehand.' },
   {
+    id: 'cloud',
+    label: 'Cloud (Shift+G)',
+    hint: 'Click each corner; click the first corner again, double-click, or press Enter to finish.',
+  },
+  {
+    id: 'highlighter',
+    label: 'Highlighter (Shift+H)',
+    hint: 'Press and drag to highlight; it multiplies over the drawing.',
+  },
+  {
     id: 'textbox',
     label: 'Text Box (T)',
     hint: 'Drag a box (or click for a default one), type, then Ctrl+Enter or click away.',
@@ -217,7 +227,13 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     k: 'callout',
     n: 'note',
   };
-  const shifted: Record<string, Tool> = { m: 'polylength', a: 'perimeter', l: 'arrow' };
+  const shifted: Record<string, Tool> = {
+    m: 'polylength',
+    a: 'perimeter',
+    l: 'arrow',
+    g: 'cloud',
+    h: 'highlighter',
+  };
   const next = event.shiftKey ? shifted[key] : plain[key];
   if (next) actions.setTool(next);
 }

@@ -24,6 +24,8 @@ const KIND_LABEL: Record<Tool['kind'], string> = {
   textbox: 'Text box',
   callout: 'Callout',
   note: 'Note',
+  cloud: 'Cloud',
+  highlighter: 'Highlighter',
 };
 
 function ToolRow({ tool, index }: { tool: Tool; index: number }) {

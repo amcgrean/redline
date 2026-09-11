@@ -9,7 +9,7 @@
  */
 
 import type { PDFDict } from '@cantoo/pdf-lib';
-import { PDFArray, PDFName, type PDFContext } from '@cantoo/pdf-lib';
+import { PDFArray, PDFName, PDFNumber, type PDFContext } from '@cantoo/pdf-lib';
 import type { Geometry, LineEnding, Markup, Point, Rect, RedlineDocument, RGB } from '../types.js';
 import { generateUniqueNM } from '../ids.js';
 import { boundsOf } from '../measure/geometry.js';
@@ -22,10 +22,24 @@ import {
   buildPolylineAppearance,
   type AppearanceResult,
 } from './ap/measurement.js';
-import { buildEllipseAppearance, buildInkAppearance, buildRectAppearance } from './ap/shapes.js';
+import {
+  buildCloudAppearance,
+  buildEllipseAppearance,
+  buildInkAppearance,
+  buildRectAppearance,
+} from './ap/shapes.js';
 import { writeCommonKeys, type CommonStyle } from './common.js';
 
-export type ShapeKind = 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'polyline' | 'polygon' | 'pen';
+export type ShapeKind =
+  | 'rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'arrow'
+  | 'polyline'
+  | 'polygon'
+  | 'cloud'
+  | 'pen'
+  | 'highlighter';
 
 export interface ShapeStyle {
   stroke: RGB;
@@ -36,7 +50,19 @@ export interface ShapeStyle {
   dash?: number[];
   /** Line and arrow only. */
   lineEnds?: [LineEnding, LineEnding];
+  /** Highlighter: `/BM /Multiply` on the annotation and in the AP's ExtGState. */
+  blend?: 'Multiply';
+  /** Cloud only: `/BE /I`. */
+  cloudIntensity?: number;
 }
+
+/** Highlighter defaults: a wide translucent-looking yellow that multiplies over the page. */
+export const DEFAULT_HIGHLIGHTER_STYLE: ShapeStyle = {
+  stroke: { r: 1, g: 0.92, b: 0.23 },
+  width: 14,
+  opacity: 1,
+  blend: 'Multiply',
+};
 
 export const DEFAULT_SHAPE_STYLE: ShapeStyle = {
   stroke: { r: 0.83, g: 0.18, b: 0.18 },
@@ -58,8 +84,8 @@ export interface ShapeOptions {
 export type ShapeGeometry =
   | { kind: 'rectangle' | 'ellipse'; rect: Rect }
   | { kind: 'line' | 'arrow'; start: Point; end: Point }
-  | { kind: 'polyline' | 'polygon'; points: Point[] }
-  | { kind: 'pen'; paths: Point[][] };
+  | { kind: 'polyline' | 'polygon' | 'cloud'; points: Point[] }
+  | { kind: 'pen' | 'highlighter'; paths: Point[][] };
 
 function attach(
   context: PDFContext,
@@ -73,12 +99,16 @@ function attach(
     round(appearance.bounds[2]),
     round(appearance.bounds[3]),
   ];
-  const alpha = { stroke: style.opacity, fill: style.fillOpacity ?? style.opacity };
+  const alpha = {
+    stroke: style.opacity,
+    fill: style.fillOpacity ?? style.opacity,
+    ...(style.blend && { blend: style.blend }),
+  };
   const stream = buildFormXObject(context, {
     bbox: rect,
     content: appearance.content,
     withFont: false,
-    ...((alpha.stroke < 1 || alpha.fill < 1) && { alpha }),
+    ...((alpha.stroke < 1 || alpha.fill < 1 || style.blend) && { alpha }),
   });
   setAppearance(context, annot, context.register(stream));
   annot.set(PDFName.of('Rect'), numArray(context, rect));
@@ -127,12 +157,24 @@ export function shapeAppearance(geometry: ShapeGeometry, style: ShapeStyle): App
         opacity: style.opacity,
         fillOpacity,
       });
+    case 'cloud':
+      return buildCloudAppearance({
+        points: geometry.points,
+        stroke: style.stroke,
+        ...(style.fill && { fill: style.fill }),
+        width: style.width,
+        opacity: style.opacity,
+        fillOpacity,
+        intensity: style.cloudIntensity ?? 1,
+      });
     case 'pen':
+    case 'highlighter':
       return buildInkAppearance({
         paths: geometry.paths,
         stroke: style.stroke,
         width: style.width,
         opacity: style.opacity,
+        ...(style.blend && { blend: style.blend }),
       });
   }
 }
@@ -149,8 +191,10 @@ function subtypeOf(kind: ShapeKind): Markup['rawSubtype'] {
     case 'polyline':
       return 'PolyLine';
     case 'polygon':
+    case 'cloud':
       return 'Polygon';
     case 'pen':
+    case 'highlighter':
       return 'Ink';
   }
 }
@@ -164,12 +208,21 @@ export function addShapeMarkup(
 ): Markup {
   const context = doc.pdfDoc.context;
   const page = doc.pdfDoc.getPage(pageIndex);
-  const style: ShapeStyle = { ...DEFAULT_SHAPE_STYLE, ...options.style };
+  const base = geometry.kind === 'highlighter' ? DEFAULT_HIGHLIGHTER_STYLE : DEFAULT_SHAPE_STYLE;
+  const style: ShapeStyle = { ...base, ...options.style };
   const now = options.now ?? new Date();
   const nm = options.nm ?? generateUniqueNM(doc.usedNM);
   if (options.nm) doc.usedNM.add(options.nm);
 
   const annot = context.obj({}) as PDFDict;
+  if (style.blend) annot.set(PDFName.of('BM'), PDFName.of(style.blend));
+  if (geometry.kind === 'cloud') {
+    annot.set(PDFName.of('IT'), PDFName.of('PolygonCloud'));
+    const be = context.obj({}) as PDFDict;
+    be.set(PDFName.of('S'), PDFName.of('C'));
+    be.set(PDFName.of('I'), PDFNumber.of(style.cloudIntensity ?? 1));
+    annot.set(PDFName.of('BE'), be);
+  }
   const common: CommonStyle = {
     stroke: style.stroke,
     ...(style.fill && { fill: style.fill }),
@@ -214,6 +267,7 @@ export function addShapeMarkup(
     }
     case 'polyline':
     case 'polygon':
+    case 'cloud':
       annot.set(
         PDFName.of('Vertices'),
         numArray(
@@ -224,10 +278,11 @@ export function addShapeMarkup(
       modelGeometry = {
         kind: 'poly',
         points: [...geometry.points],
-        closed: geometry.kind === 'polygon',
+        closed: geometry.kind !== 'polyline',
       };
       break;
-    case 'pen': {
+    case 'pen':
+    case 'highlighter': {
       const inkList = PDFArray.withContext(context);
       for (const path of geometry.paths) {
         inkList.push(
@@ -253,6 +308,7 @@ export function addShapeMarkup(
     subtype: subtype as Markup['subtype'],
     rawSubtype: subtype,
     ...(geometry.kind === 'arrow' && { intent: 'LineArrow' }),
+    ...(geometry.kind === 'cloud' && { intent: 'PolygonCloud' }),
     geometry: modelGeometry,
     rect,
     style: {
@@ -263,6 +319,8 @@ export function addShapeMarkup(
       width: style.width,
       ...(style.dash && { dash: style.dash }),
       ...(style.lineEnds && { lineEnds: style.lineEnds }),
+      ...(style.blend && { blend: style.blend }),
+      ...(geometry.kind === 'cloud' && { cloud: { intensity: style.cloudIntensity ?? 1 } }),
     },
     text: {
       contents: options.contents ?? '',
@@ -294,6 +352,8 @@ export function regenerateShapeAppearance(doc: RedlineDocument, markup: Markup):
     opacity: markup.style.opacity,
     ...(markup.style.dash && { dash: markup.style.dash }),
     ...(markup.style.lineEnds && { lineEnds: markup.style.lineEnds }),
+    ...(markup.style.blend && { blend: markup.style.blend }),
+    ...(markup.style.cloud && { cloudIntensity: markup.style.cloud.intensity }),
   };
   const g = markup.geometry;
   let shape: ShapeGeometry | undefined;
@@ -310,8 +370,12 @@ export function regenerateShapeAppearance(doc: RedlineDocument, markup: Markup):
   else if (markup.rawSubtype === 'PolyLine' && g.kind === 'poly')
     shape = { kind: 'polyline', points: g.points };
   else if (markup.rawSubtype === 'Polygon' && g.kind === 'poly')
-    shape = { kind: 'polygon', points: g.points };
-  else if (markup.rawSubtype === 'Ink' && g.kind === 'ink') shape = { kind: 'pen', paths: g.paths };
+    shape = {
+      kind: markup.intent === 'PolygonCloud' || markup.style.cloud ? 'cloud' : 'polygon',
+      points: g.points,
+    };
+  else if (markup.rawSubtype === 'Ink' && g.kind === 'ink')
+    shape = { kind: markup.style.blend ? 'highlighter' : 'pen', paths: g.paths };
   if (!shape) return false;
   markup.rect = attach(doc.pdfDoc.context, markup.raw, shapeAppearance(shape, style), style);
   if (g.kind === 'rect') g.rect = markup.rect;
@@ -329,8 +393,10 @@ export function shapeBounds(geometry: ShapeGeometry): Rect {
       return boundsOf([geometry.start, geometry.end]);
     case 'polyline':
     case 'polygon':
+    case 'cloud':
       return boundsOf(geometry.points);
     case 'pen':
+    case 'highlighter':
       return boundsOf(geometry.paths.flat());
   }
 }

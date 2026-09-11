@@ -74,6 +74,10 @@ export interface MarkupStyle {
   dash?: number[];
   lineEnds?: [LineEnding, LineEnding];
   font?: { family: string; size: number; color?: RGB };
+  /** `/BM` on the annotation (ISO 32000-2; Revu writes it): highlighters use `Multiply`. */
+  blend?: 'Multiply';
+  /** Cloud border (`/BE /S /C`) intensity, present on cloud polygons. */
+  cloud?: { intensity: number };
 }
 
 export interface MarkupText {
