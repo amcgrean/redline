@@ -238,6 +238,14 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     if (hasDoc) actions.paste();
     return;
   }
+  if (ctrl && key === 'g') {
+    event.preventDefault();
+    if (hasDoc) {
+      if (event.shiftKey) actions.ungroup();
+      else actions.group();
+    }
+    return;
+  }
   if (ctrl && key === 'd') {
     event.preventDefault();
     if (hasDoc) actions.duplicate();

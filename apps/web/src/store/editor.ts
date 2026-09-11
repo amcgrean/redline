@@ -28,6 +28,7 @@ import type {
 } from '@redline/pdf-core';
 import {
   BUILTIN_STAMPS,
+  groupMembers,
   countGroupOf,
   embedStampArtwork,
   flattenMarkups,
@@ -97,6 +98,8 @@ import {
   duplicateCommand,
   lockCommand,
   hideCommand,
+  groupCommand,
+  ungroupCommand,
   reorderCommand,
   captionCommand,
   convertCommand,
@@ -1093,21 +1096,24 @@ export const actions = {
     return command.markup;
   },
 
+  /** Selecting any member of a group selects the whole group (Revu behaviour). */
   select(id: string | undefined): void {
+    const ids = id ? expandGroups([id]) : [];
     set((s) => {
       s.selectedId = id;
-      s.selectedIds = id ? [id] : [];
+      s.selectedIds = ids;
     });
   },
 
-  /** Shift/Ctrl-click: add to or remove from the selection. */
+  /** Shift/Ctrl-click: add to or remove from the selection (whole groups at a time). */
   toggleSelect(id: string): void {
+    const members = expandGroups([id]);
     set((s) => {
       if (s.selectedIds.includes(id)) {
-        s.selectedIds = s.selectedIds.filter((x) => x !== id);
+        s.selectedIds = s.selectedIds.filter((x) => !members.includes(x));
         s.selectedId = s.selectedIds[s.selectedIds.length - 1];
       } else {
-        s.selectedIds.push(id);
+        s.selectedIds = [...s.selectedIds, ...members.filter((m) => !s.selectedIds.includes(m))];
         s.selectedId = id;
       }
     });
@@ -1115,12 +1121,40 @@ export const actions = {
 
   /** Marquee result. `additive` keeps the existing selection (Shift held). */
   selectMany(ids: string[], additive = false): void {
+    const expanded = expandGroups(ids);
     set((s) => {
       const base = additive ? s.selectedIds : [];
-      const merged = [...base, ...ids.filter((id) => !base.includes(id))];
+      const merged = [...base, ...expanded.filter((id) => !base.includes(id))];
       s.selectedIds = merged;
       s.selectedId = merged[merged.length - 1];
     });
+  },
+
+  /** Ctrl+G: group the selection under its first markup. */
+  group(): void {
+    const session = getSession();
+    const { selectedIds } = useEditorStore.getState();
+    if (!session || selectedIds.length < 2) return;
+    const pages = new Set(
+      selectedIds.map((id) => session.doc.markups.find((m) => m.id === id)?.pageIndex),
+    );
+    if (pages.size !== 1) {
+      actions.setStatus('A group stays on one page');
+      return;
+    }
+    const command = groupCommand(session.doc, selectedIds);
+    session.history.run(command);
+    bump({ status: command.label });
+  },
+
+  /** Ctrl+Shift+G: dissolve every group in the selection. */
+  ungroup(): void {
+    const session = getSession();
+    const { selectedIds } = useEditorStore.getState();
+    if (!session || selectedIds.length === 0) return;
+    const command = ungroupCommand(session.doc, selectedIds);
+    session.history.run(command);
+    bump({ status: command.label });
   },
 
   /** Ctrl+A: every visible markup on the current page. */
@@ -1821,6 +1855,18 @@ async function persistChest(chest: ToolChest): Promise<void> {
   } catch {
     // Storage unavailable: the chest lives for this session only.
   }
+}
+
+/** Every id plus the other members of the groups they belong to, in order, without repeats. */
+function expandGroups(ids: string[]): string[] {
+  const doc = getSession()?.doc;
+  if (!doc) return ids;
+  const out: string[] = [];
+  for (const id of ids) {
+    const members = doc.markups.some((m) => m.id === id) ? groupMembers(doc, id) : [id];
+    for (const m of members) if (!out.includes(m)) out.push(m);
+  }
+  return out;
 }
 
 /** The subject/author/style new measurements take: the active chest tool's, else defaults. */

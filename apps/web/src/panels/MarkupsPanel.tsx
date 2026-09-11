@@ -275,6 +275,7 @@ export function MarkupsPanel() {
                 <td>
                   {r.type}
                   {r.markup.flags.hidden ? ' (hidden)' : ''}
+                  {r.markup.relations.groupParent ? ' ⧉' : ''}
                 </td>
                 <td>{r.value}</td>
                 <td className="muted">{r.author}</td>

@@ -167,3 +167,4 @@ export { parseRanges, everyN, splitDocument } from './pages/split.js';
 export type { SplitPart } from './pages/split.js';
 export { setMarkupHidden, reorderMarkup, markupOrder, setMarkupOrder } from './annots/order.js';
 export type { MarkupOrder } from './annots/order.js';
+export { groupMarkups, ungroupMarkups, groupMembers, isGrouped } from './annots/group.js';

@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Group, Line, Rect, Ellipse, Text, Image as KImage } from 'react-konva';
-import { cloudOutline, cloudRadius, countGroupOf } from '@redline/pdf-core';
+import { cloudOutline, cloudRadius, countGroupOf, isGrouped } from '@redline/pdf-core';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Markup, Point, Rect as PdfRect, RGB } from '@redline/pdf-core';
@@ -1020,6 +1020,18 @@ function menuItems(
       label: many ? `Hide ${ids.length} markups` : 'Hide',
       onSelect: () => actions.setHidden(ids, true),
     },
+    ...(many
+      ? [
+          {
+            label: `Group ${ids.length} markups`,
+            shortcut: 'Ctrl+G',
+            onSelect: () => actions.group(),
+          },
+        ]
+      : []),
+    ...(doc && ids.some((id) => isGrouped(doc, id))
+      ? [{ label: 'Ungroup', shortcut: 'Ctrl+Shift+G', onSelect: () => actions.ungroup() }]
+      : []),
     ...(!many
       ? [
           { label: 'Bring to front', onSelect: () => actions.reorder(markup.id, 'front') },

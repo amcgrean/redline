@@ -25,6 +25,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['Ctrl+Z / Ctrl+Y', 'Undo / Redo'],
       ['Ctrl+C / Ctrl+V', 'Copy / Paste markups'],
       ['Ctrl+D', 'Duplicate'],
+      ['Ctrl+G / Ctrl+Shift+G', 'Group / Ungroup'],
       ['Delete', 'Delete selection'],
       ['Ctrl+A', 'Select all on page'],
       ['Shift+click / drag on empty space', 'Add to selection / marquee'],

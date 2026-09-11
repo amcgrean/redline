@@ -40,6 +40,9 @@ import {
   addStamp,
   stampPages,
   setMarkupHidden,
+  groupMarkups,
+  ungroupMarkups,
+  groupMembers,
   reorderMarkup,
   setMarkupOrder,
   setMeasurementCaption,
@@ -402,6 +405,40 @@ export function lockCommand(doc: RedlineDocument, ids: string[], locked: boolean
     undo() {
       for (const [id, was] of previous) {
         if (doc.markups.some((x) => x.id === id)) setMarkupLocked(doc, id, was);
+      }
+    },
+  };
+}
+
+export function groupCommand(doc: RedlineDocument, ids: string[]): Command {
+  return {
+    label: `Group ${ids.length} markups`,
+    do() {
+      groupMarkups(doc, ids);
+    },
+    undo() {
+      ungroupMarkups(doc, ids);
+    },
+  };
+}
+
+export function ungroupCommand(doc: RedlineDocument, ids: string[]): Command {
+  /** Previous groups, parent first, so undo can rebuild them. */
+  const groups = new Map<string, string[]>();
+  return {
+    label: 'Ungroup',
+    do() {
+      groups.clear();
+      for (const id of ids) {
+        const members = groupMembers(doc, id);
+        if (members.length > 1) groups.set(members[0]!, members);
+      }
+      ungroupMarkups(doc, ids);
+    },
+    undo() {
+      for (const members of groups.values()) {
+        const alive = members.filter((m) => doc.markups.some((x) => x.id === m));
+        if (alive.length > 1) groupMarkups(doc, alive);
       }
     },
   };
