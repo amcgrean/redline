@@ -5,23 +5,10 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { RGB } from '@redline/pdf-core';
 import { canRegenerateAppearance, countGroupOf } from '@redline/pdf-core';
 import { actions, useEditor } from '../store';
 
-function toHex(c: RGB | undefined): string {
-  if (!c) return '#000000';
-  const v = (x: number) =>
-    Math.round(Math.max(0, Math.min(1, x)) * 255)
-      .toString(16)
-      .padStart(2, '0');
-  return `#${v(c.r)}${v(c.g)}${v(c.b)}`;
-}
-
-function fromHex(hex: string): RGB {
-  const n = parseInt(hex.replace('#', ''), 16);
-  return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255 };
-}
+import { fromHex, toHex } from '../color';
 
 export function PropertiesPanel() {
   const { doc, selectedId, version } = useEditor();
@@ -188,6 +175,13 @@ export function PropertiesPanel() {
           </dl>
         </>
       )}
+      <button
+        type="button"
+        onClick={() => actions.addToolFromMarkup(markup.id)}
+        title="Save this markup's subject and style as a tool"
+      >
+        Add to Tool Chest
+      </button>
       <button
         type="button"
         className="danger"

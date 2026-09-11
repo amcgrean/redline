@@ -22,7 +22,17 @@ import type {
 import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
-import { rememberRecent, type AutosaveEntry } from '../db';
+import { db, rememberRecent, type AutosaveEntry } from '../db';
+import {
+  defaultToolChest,
+  newId,
+  parseToolChest,
+  serializeToolChest,
+  type Tool as ChestTool,
+  type ToolChest,
+} from '@redline/toolchest';
+import { countGroupOf as isCount, type MeasurementStyle, type CountStyle } from '@redline/pdf-core';
+import { fromHex, toHex } from '../color';
 import {
   clearAutosave,
   loadAutosave,
@@ -71,7 +81,7 @@ export type Tool =
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
-export type PanelTab = 'measure' | 'markups' | 'pages' | 'properties';
+export type PanelTab = 'tools' | 'markups' | 'pages' | 'properties' | 'measure';
 /** Which pages a new scale applies to (PLAN §3.7 "Scope"). */
 export type ScaleScope = 'page' | 'like' | 'all';
 
@@ -97,6 +107,10 @@ export interface EditorUiState {
   showThumbnails: boolean;
   panel: { open: boolean; tab: PanelTab };
   scaleScope: ScaleScope;
+  /** The active tool chest (persisted in Dexie). */
+  chest?: ToolChest;
+  /** The chest tool whose subject/style new markups take. */
+  activeToolId?: string;
   find: { open: boolean; query: string; hits: FindHit[]; index: number };
   autosave: AutosaveState;
   /** 0-based page the viewer considers current (tracks scrolling). */
@@ -133,7 +147,7 @@ export const useEditorStore = create<EditorUiState>()(
     layoutMode: 'continuous',
     viewRotation: 0,
     showThumbnails: false,
-    panel: { open: true, tab: 'measure' },
+    panel: { open: true, tab: 'tools' },
     scaleScope: 'page',
     find: { open: false, query: '', hits: [], index: 0 },
     autosave: 'idle',
@@ -278,7 +292,168 @@ export const actions = {
       s.selectedId = undefined;
       // Every activation of the Count tool starts a fresh group.
       s.countGroup = tool === 'count' ? generateNM() : undefined;
+      // A chest tool only stays active while its kind is the tool in use.
+      const active = s.chest?.tools.find((t) => t.id === s.activeToolId);
+      if (active && active.kind !== tool) s.activeToolId = undefined;
     });
+  },
+
+  // ---- tool chest ----
+
+  async loadToolChest(): Promise<void> {
+    let chest: ToolChest | undefined;
+    try {
+      const rows = await db.toolchests.orderBy('updatedAt').reverse().toArray();
+      for (const row of rows) {
+        try {
+          chest = parseToolChest(row.json);
+          break;
+        } catch {
+          // skip a corrupt row
+        }
+      }
+    } catch {
+      // IndexedDB unavailable: fall through to the default chest, in memory only.
+    }
+    if (!chest) {
+      chest = defaultToolChest(useEditorStore.getState().author);
+      await persistChest(chest);
+    }
+    set((s) => {
+      s.chest = chest;
+    });
+  },
+
+  /** Make a chest tool active: switch to its kind and draw with its subject/style. */
+  selectTool(id: string): void {
+    const { chest } = useEditorStore.getState();
+    const tool = chest?.tools.find((t) => t.id === id);
+    if (!tool) return;
+    set((s) => {
+      s.tool = tool.kind;
+      s.selectedId = undefined;
+      s.countGroup = tool.kind === 'count' ? generateNM() : undefined;
+      s.activeToolId = tool.id;
+      s.status = `Tool: ${tool.name}`;
+    });
+  },
+
+  /** Quick slot 1..9. */
+  selectToolSlot(slot: number): void {
+    const { chest } = useEditorStore.getState();
+    const tool = chest?.tools[slot - 1];
+    if (tool) actions.selectTool(tool.id);
+  },
+
+  updateTool(id: string, patch: Partial<ChestTool>): void {
+    const { chest } = useEditorStore.getState();
+    if (!chest) return;
+    const next: ToolChest = {
+      ...chest,
+      updatedAt: new Date().toISOString(),
+      tools: chest.tools.map((t) => (t.id === id ? { ...t, ...patch, id } : t)),
+    };
+    set((s) => {
+      s.chest = next;
+    });
+    void persistChest(next);
+  },
+
+  removeTool(id: string): void {
+    const { chest } = useEditorStore.getState();
+    if (!chest) return;
+    const next: ToolChest = {
+      ...chest,
+      updatedAt: new Date().toISOString(),
+      tools: chest.tools.filter((t) => t.id !== id),
+    };
+    set((s) => {
+      s.chest = next;
+      if (s.activeToolId === id) s.activeToolId = undefined;
+    });
+    void persistChest(next);
+  },
+
+  /** "Add to Tool Chest": the selected markup's kind, subject and style become a tool. */
+  addToolFromMarkup(markupId: string): void {
+    const session = getSession();
+    const { chest } = useEditorStore.getState();
+    if (!session || !chest) return;
+    const m = session.doc.markups.find((x) => x.id === markupId);
+    if (!m) return;
+    const kind = toolKindOf(m);
+    if (!kind) {
+      set((s) => {
+        s.status = 'Only measurements and counts can become tools for now';
+      });
+      return;
+    }
+    const subject = m.text?.subject || kind;
+    const tool: ChestTool = {
+      id: newId(),
+      name: subject,
+      subject,
+      kind,
+      mode: 'properties',
+      style: {
+        stroke: toHex(m.style.stroke),
+        ...(m.style.fill && { fill: toHex(m.style.fill) }),
+        ...(m.style.fillOpacity !== undefined && { fillOpacity: m.style.fillOpacity }),
+        opacity: m.style.opacity,
+        lineWidth: m.style.width,
+        ...(m.style.lineEnds && { lineEnds: m.style.lineEnds }),
+        ...(m.style.dash && { dash: m.style.dash }),
+      },
+      measure: {
+        display: m.measure?.units.display ?? 'ft-in',
+        precision: m.measure?.units.precision ?? 16,
+        caption: m.measure?.caption ?? true,
+        captionPosition: 'top',
+      },
+      attributes: [],
+      formulas: [],
+      icon: 'auto',
+    };
+    const next: ToolChest = {
+      ...chest,
+      updatedAt: new Date().toISOString(),
+      tools: [...chest.tools, tool],
+    };
+    set((s) => {
+      s.chest = next;
+      s.activeToolId = tool.id;
+      s.panel = { open: true, tab: 'tools' };
+      s.status = `Added "${tool.name}" to the tool chest`;
+    });
+    void persistChest(next);
+  },
+
+  exportToolChest(): void {
+    const { chest } = useEditorStore.getState();
+    if (!chest) return;
+    const blob = new Blob([serializeToolChest(chest)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chest.name.replace(/[^\w.-]+/g, '_')}.toolchest.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
+
+  async importToolChest(text: string): Promise<void> {
+    try {
+      const chest = parseToolChest(text);
+      await persistChest(chest);
+      set((s) => {
+        s.chest = chest;
+        s.activeToolId = undefined;
+        s.status = `Imported tool chest "${chest.name}" (${chest.tools.length} tools)`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `Not a valid tool chest: ${(error as Error).message.split('\n')[0]}`;
+      });
+    }
   },
 
   setSpacePan(active: boolean): void {
@@ -292,10 +467,12 @@ export const actions = {
     const { doc, history } = requireSession();
     const state = useEditorStore.getState();
     const group = state.countGroup ?? generateNM();
+    const active = state.chest?.tools.find((t) => t.id === state.activeToolId);
     const command = addCountCommand(doc, pageIndex, center, {
-      subject: 'Count',
+      subject: active?.subject ?? 'Count',
       author: state.author,
       group,
+      ...(active && { style: countStyleOf(active) }),
     });
     history.run(command);
     const total = doc.markups.filter((m) => countGroupOf(m) === group).length;
@@ -510,8 +687,7 @@ export const actions = {
   addLength(pageIndex: number, a: Point, b: Point): Markup | undefined {
     const { doc, history } = requireSession();
     const command = addLengthCommand(doc, pageIndex, a, b, {
-      subject: 'Length',
-      author: useEditorStore.getState().author,
+      ...measurementOptions('Length'),
     });
     history.run(command);
     bump({ selectedId: command.id, status: `Length ${command.markup?.text?.contents ?? ''}` });
@@ -521,8 +697,7 @@ export const actions = {
   addArea(pageIndex: number, vertices: Point[]): Markup | undefined {
     const { doc, history } = requireSession();
     const command = addAreaCommand(doc, pageIndex, vertices, {
-      subject: 'Area',
-      author: useEditorStore.getState().author,
+      ...measurementOptions('Area'),
     });
     history.run(command);
     bump({ selectedId: command.id, status: `Area ${command.markup?.text?.contents ?? ''}` });
@@ -533,8 +708,7 @@ export const actions = {
   addPolyline(pageIndex: number, vertices: Point[], closed: boolean): Markup | undefined {
     const { doc, history } = requireSession();
     const command = addPolylineCommand(doc, pageIndex, vertices, {
-      subject: closed ? 'Perimeter' : 'Polylength',
-      author: useEditorStore.getState().author,
+      ...measurementOptions(closed ? 'Perimeter' : 'Polylength'),
       closed,
     });
     history.run(command);
@@ -636,6 +810,70 @@ export const actions = {
     });
   },
 };
+
+async function persistChest(chest: ToolChest): Promise<void> {
+  try {
+    await db.toolchests.put({
+      id: chest.id,
+      json: serializeToolChest(chest),
+      updatedAt: Date.now(),
+    });
+  } catch {
+    // Storage unavailable: the chest lives for this session only.
+  }
+}
+
+/** The subject/author/style new measurements take: the active chest tool's, else defaults. */
+function measurementOptions(fallbackSubject: string): {
+  subject: string;
+  author: string;
+  style?: Partial<MeasurementStyle>;
+} {
+  const state = useEditorStore.getState();
+  const active = state.chest?.tools.find((t) => t.id === state.activeToolId);
+  if (!active) return { subject: fallbackSubject, author: state.author };
+  return { subject: active.subject, author: state.author, style: measurementStyleOf(active) };
+}
+
+function measurementStyleOf(tool: ChestTool): Partial<MeasurementStyle> {
+  const s = tool.style;
+  return {
+    stroke: fromHex(s.stroke),
+    ...(s.fill && { fill: fromHex(s.fill) }),
+    ...(s.fillOpacity !== undefined && { fillOpacity: s.fillOpacity }),
+    opacity: s.opacity,
+    width: s.lineWidth,
+    ...(s.lineEnds && { lineEnds: s.lineEnds }),
+    ...(s.dash && s.dash.length > 0 && { dash: s.dash }),
+    ...(tool.style.font?.size && { captionSize: tool.style.font.size }),
+  };
+}
+
+function countStyleOf(tool: ChestTool): Partial<CountStyle> {
+  const s = tool.style;
+  return {
+    stroke: fromHex(s.stroke),
+    fill: fromHex(s.fill ?? s.stroke),
+    ...(s.fillOpacity !== undefined && { fillOpacity: s.fillOpacity }),
+    opacity: s.opacity,
+    width: s.lineWidth,
+  };
+}
+
+/** Which chest kind a markup corresponds to, if any. */
+function toolKindOf(m: Markup): ChestTool['kind'] | undefined {
+  if (isCount(m)) return 'count';
+  if (m.intent === 'LineDimension') return 'length';
+  if (m.intent === 'PolygonDimension') return 'area';
+  if (m.intent === 'PolyLineDimension') {
+    if (m.geometry.kind !== 'poly') return 'polylength';
+    const p = m.geometry.points;
+    const a = p[0];
+    const b = p[p.length - 1];
+    return a && b && p.length > 2 && a.x === b.x && a.y === b.y ? 'perimeter' : 'polylength';
+  }
+  return undefined;
+}
 
 /** Pages a scale applies to. "like" = same size and orientation as `pageIndex`. */
 function pagesInScope(

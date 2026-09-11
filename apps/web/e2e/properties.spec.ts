@@ -22,7 +22,7 @@ async function sheet(): Promise<Buffer> {
 
 async function openDoc(page: Page): Promise<{ x: number; y: number }> {
   await page.goto('/');
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name: 'props.pdf',
     mimeType: 'application/pdf',
     buffer: await sheet(),
@@ -38,6 +38,7 @@ const status = (page: Page) => page.locator('.status').last();
 
 test('rename a length: the Markups List regroups; style edits undo', async ({ page }) => {
   const o = await openDoc(page);
+  await page.keyboard.press('Control+Shift+5');
   await panel(page).getByRole('button', { name: `Preset 1/8" = 1'-0"` }).click();
   await page.keyboard.press('m');
   await page.mouse.click(o.x, o.y + 100);

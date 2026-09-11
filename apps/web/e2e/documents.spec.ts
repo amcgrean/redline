@@ -23,7 +23,7 @@ async function sheet(label: string, pages = 1): Promise<Buffer> {
 }
 
 async function upload(page: Page, name: string, buffer: Buffer): Promise<void> {
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name,
     mimeType: 'application/pdf',
     buffer,

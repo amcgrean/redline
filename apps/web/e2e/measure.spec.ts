@@ -22,7 +22,7 @@ async function sheet(): Promise<Buffer> {
 
 async function openCalibrated(page: Page): Promise<{ x: number; y: number }> {
   await page.goto('/');
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name: 'measure.pdf',
     mimeType: 'application/pdf',
     buffer: await sheet(),
@@ -69,7 +69,7 @@ test('perimeter: click the first corner again to close, 40 ft', async ({ page })
 
 test('rectangle area: two corners, 100 sf', async ({ page }) => {
   const o = await openCalibrated(page);
-  await page.getByRole('button', { name: 'Rect Area' }).click();
+  await page.getByRole('button', { name: 'Rect Area', exact: true }).click();
   await page.mouse.click(o.x, o.y + 100);
   await page.mouse.click(o.x + 200, o.y + 300);
   await expect(status(page)).toHaveText('Area 100 sf');

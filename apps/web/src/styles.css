@@ -657,3 +657,94 @@ button.danger:hover:not(:disabled) {
 .properties-panel input[type='range'] {
   width: 90px;
 }
+
+/* Tool chest panel. */
+.tools-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.tools-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tool-row {
+  display: grid;
+  grid-template-columns: 16px 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.tool-row:hover {
+  background: #ececec;
+}
+.tool-row.active {
+  background: #fbe9e7;
+  border-color: #d32f2f;
+}
+.tool-slot {
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+}
+.tool-swatch {
+  width: 18px;
+  height: 18px;
+  border: 2px solid;
+  border-radius: 3px;
+}
+.tool-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tool-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-edit {
+  display: flex;
+  gap: 4px;
+}
+.tool-edit input {
+  width: 100px;
+  font: inherit;
+}
+.tool-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tool-actions input[type='color'] {
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+.tools-foot {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tools-foot button {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid #999;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+}

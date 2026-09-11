@@ -13,6 +13,7 @@
   "dependencies": {
     "@cantoo/pdf-lib": "^2.9.0",
     "@redline/pdf-core": "workspace:*",
+    "@redline/toolchest": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "clsx": "^2.1.1",
     "dexie": "^4.4.5",

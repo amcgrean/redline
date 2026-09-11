@@ -25,7 +25,7 @@ test('open a PDF, calibrate, draw a length, save', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Drop a PDF here')).toBeVisible();
 
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name: 'blank-archd.pdf',
     mimeType: 'application/pdf',
     buffer: await blankArchD(),

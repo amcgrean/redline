@@ -6,15 +6,17 @@
 import type { PdfjsDocument } from '../pdfjs';
 import { actions, useEditorStore, type PanelTab } from '../store';
 import { MeasurePanel } from './MeasurePanel';
+import { ToolsPanel } from './ToolsPanel';
 import { MarkupsPanel } from './MarkupsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Thumbnails } from '../Thumbnails';
 
 export const PANEL_TABS: { id: PanelTab; label: string; key: string }[] = [
-  { id: 'measure', label: 'Measure', key: 'Ctrl+Shift+1' },
+  { id: 'tools', label: 'Tools', key: 'Ctrl+Shift+1' },
   { id: 'markups', label: 'Markups', key: 'Ctrl+Shift+2' },
   { id: 'pages', label: 'Pages', key: 'Ctrl+Shift+3' },
   { id: 'properties', label: 'Properties', key: 'Ctrl+Shift+4' },
+  { id: 'measure', label: 'Measure', key: 'Ctrl+Shift+5' },
 ];
 
 export function Panel({ pdfjs }: { pdfjs: PdfjsDocument }) {
@@ -49,6 +51,7 @@ export function Panel({ pdfjs }: { pdfjs: PdfjsDocument }) {
       </div>
       {open && (
         <div className="panel-body" role="tabpanel">
+          {tab === 'tools' && <ToolsPanel />}
           {tab === 'measure' && <MeasurePanel />}
           {tab === 'markups' && <MarkupsPanel />}
           {tab === 'pages' && <Thumbnails pdfjs={pdfjs} />}

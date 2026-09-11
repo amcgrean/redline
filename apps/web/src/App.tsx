@@ -149,10 +149,15 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     event.preventDefault();
     return actions.previousPage();
   }
-  if (ctrl && event.shiftKey && /^Digit[1-4]$/.test(event.code)) {
+  if (ctrl && event.shiftKey && /^Digit[1-5]$/.test(event.code)) {
     event.preventDefault();
-    const tabs = ['measure', 'markups', 'pages', 'properties'] as const;
+    const tabs = ['tools', 'markups', 'pages', 'properties', 'measure'] as const;
     return actions.setPanel(tabs[Number(event.code.slice(5)) - 1]!);
+  }
+  // Quick slots: 1–9 fire the first nine chest tools (PLAN §3.8).
+  if (!ctrl && !event.altKey && !event.shiftKey && /^Digit[1-9]$/.test(event.code)) {
+    event.preventDefault();
+    return actions.selectToolSlot(Number(event.code.slice(5)));
   }
   if (event.key === 'Home' && ctrl) return actions.goToPage(0);
   if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
@@ -227,6 +232,11 @@ export function App() {
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
     };
+  }, []);
+
+  // The tool chest lives in IndexedDB; load (or seed) it once.
+  useEffect(() => {
+    void actions.loadToolChest();
   }, []);
 
   // Paste a PDF from the clipboard (e.g. copied in Explorer).

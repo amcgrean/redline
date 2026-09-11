@@ -13,6 +13,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'list',
   timeout: 60_000,
+  // pdf.js first render can exceed 5 s when the suite runs in parallel against one dev server.
+  expect: { timeout: 15_000 },
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',
@@ -23,5 +25,7 @@ export default defineConfig({
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+  // pdf.js first render can exceed 5 s when the suite runs in parallel against one dev server.
+  expect: { timeout: 15_000 },
   },
 });

@@ -9,8 +9,8 @@ Redline's own keys are limited to two (CLAUDE.md). Both are written by the Count
 
 ## Values in use
 
-| `/RLTool` | `/RLAttrs`                           | Markup                                                                                                                                                                                                                                                       |
-| --------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/RLTool` | `/RLAttrs`                           | Markup                                                                                                                                                                                                                                                                           |
+| --------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `count`   | `{"count":1,"group":"<16 letters>"}` | One count symbol: a `/Circle` with its own `/AP`, `/Subj` = what is counted. Every symbol of one count shares `group`; the total is the number of symbols. Revu/Acrobat see N plain circle markups under the subject (PLAN §7: no Bluebeam-private count intent until verified). |
 
 ## Bluebeam keys Redline writes for compatibility

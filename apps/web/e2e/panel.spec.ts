@@ -29,7 +29,7 @@ async function threePages(): Promise<Buffer> {
 
 async function openDoc(page: Page): Promise<void> {
   await page.goto('/');
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name: 'panel.pdf',
     mimeType: 'application/pdf',
     buffer: await threePages(),
@@ -40,6 +40,7 @@ async function openDoc(page: Page): Promise<void> {
 test('Measure tab: presets with scope, custom ratio', async ({ page }) => {
   await openDoc(page);
   const panel = page.getByRole('complementary', { name: 'Panel' });
+  await page.keyboard.press('Control+Shift+5');
   await expect(panel.getByRole('tab', { name: 'Measure' })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -48,6 +49,7 @@ test('Measure tab: presets with scope, custom ratio', async ({ page }) => {
 
   // Pages like this one: pages 1 and 2 (landscape), not page 3.
   await panel.getByLabel('Pages like this one').check();
+  await page.keyboard.press('Control+Shift+5');
   await panel.getByRole('button', { name: `Preset 1/8" = 1'-0"` }).click();
   await expect(page.getByTestId('scale-current')).toContainText(`1/8" = 1'-0"`);
   await expect(panel.getByText('2 of 3 pages have a scale')).toBeVisible();
@@ -68,6 +70,7 @@ test('Measure tab: presets with scope, custom ratio', async ({ page }) => {
 test('Markups tab lists measurements with subtotals and selects on click', async ({ page }) => {
   await openDoc(page);
   const panel = page.getByRole('complementary', { name: 'Panel' });
+  await page.keyboard.press('Control+Shift+5');
   await panel.getByRole('button', { name: `Preset 1/8" = 1'-0"` }).click();
 
   // Two lengths of the same subject: 720 px... use the calibrated page: 1/8" = 1' means

@@ -21,7 +21,7 @@ async function sheet(): Promise<Buffer> {
 
 async function openDoc(page: Page): Promise<void> {
   await page.goto('/');
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name: 'pan.pdf',
     mimeType: 'application/pdf',
     buffer: await sheet(),

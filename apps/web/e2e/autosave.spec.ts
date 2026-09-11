@@ -22,7 +22,7 @@ async function sheet(): Promise<Buffer> {
 
 async function openAndCalibrate(page: Page, name: string): Promise<void> {
   await page.goto('/');
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="pdf"]').setInputFiles({
     name,
     mimeType: 'application/pdf',
     buffer: await sheet(),

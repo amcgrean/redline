@@ -10,5 +10,6 @@ export type {
   PanelTab,
   ScaleScope,
 } from './store/editor';
+export type { Tool as ChestTool, ToolChest } from '@redline/toolchest';
 export { getSession, listSessions, History } from './store/session';
 export type { Command } from './store/commands';
