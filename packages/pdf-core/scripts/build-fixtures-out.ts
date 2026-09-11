@@ -22,6 +22,9 @@ import { saveIncremental } from '../src/document/save.js';
 import { deletePages, movePages, rotatePages, saveFull } from '../src/pages/ops.js';
 import { addStamp, embedStampArtwork, rectAt, stampPages } from '../src/stamps/stamp.js';
 import { bakeFields } from '../src/stamps/fields.js';
+import { createRequire } from 'node:module';
+import { createQpdfRunner, type QpdfModuleFactory } from '../src/compress/emscripten.js';
+import { describeSavings, optimizePdf } from '../src/compress/optimize.js';
 import { setPageScale } from '../src/measure/viewport.js';
 import {
   addAreaMeasurement,
@@ -274,10 +277,43 @@ async function stamps05(): Promise<void> {
   console.log('wrote stamps-0.5-revu.pdf');
 }
 
+/**
+ * 6. Optimize (lossless, qpdf) on the Revu fixture. Interop checklist row C1.
+ */
+async function compress06(): Promise<void> {
+  const revu = readdirSync(FIXTURES).find((f) => /bluebeam/i.test(f) && f.endsWith('.pdf'));
+  if (!revu) {
+    console.log('skip compress-0.6: no Revu fixture');
+    return;
+  }
+  const require = createRequire(import.meta.url);
+  const wasm = require.resolve('@jspawn/qpdf-wasm/qpdf.wasm');
+  const init = (await import('@jspawn/qpdf-wasm/qpdf.mjs')).default as QpdfModuleFactory;
+  // See test/compress.test.ts: this build fetches the .wasm in Node unless streaming fails.
+  const factory: QpdfModuleFactory = async (options) => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array(), {
+        headers: { 'content-type': 'text/plain' },
+      })) as typeof fetch;
+    try {
+      return await init(options);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  };
+  const runner = createQpdfRunner(factory, { locateFile: () => wasm });
+  const input = new Uint8Array(readFileSync(join(FIXTURES, revu)));
+  const report = await optimizePdf(runner, input);
+  writeFileSync(join(OUT, 'compress-0.6-revu-optimized.pdf'), report.bytes);
+  console.log(`wrote compress-0.6-revu-optimized.pdf — ${describeSavings(report)}`);
+}
+
 if (!existsSync(FIXTURES)) throw new Error(`fixtures directory missing: ${FIXTURES}`);
 mkdirSync(OUT, { recursive: true });
 await spike01();
 await spike02();
 await pages04();
 await stamps05();
+await compress06();
 if (!process.argv.includes('--spikes-only')) await corpusMoved();

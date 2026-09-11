@@ -1041,3 +1041,24 @@ form[aria-label='Profile'] .row .spacer {
   font: inherit;
   padding: 2px 6px;
 }
+
+.compress-dialog {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 20px;
+  width: min(480px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.compress-dialog .row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.compress-dialog .row .spacer {
+  flex: 1;
+}
+.compress-dialog .status {
+  font-size: 14px;
+}

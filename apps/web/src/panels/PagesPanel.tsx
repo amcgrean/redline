@@ -169,6 +169,15 @@ export function PagesPanel({ pdfjs }: { pdfjs: PdfjsDocument }) {
           <button
             type="button"
             disabled={busy}
+            title="Lossless optimize through qpdf, with a size preview"
+            aria-label="Compress"
+            onClick={() => void actions.optimize()}
+          >
+            Compress…
+          </button>
+          <button
+            type="button"
+            disabled={busy}
             title="Download a copy with every markup baked into the pages"
             aria-label="Flatten copy"
             onClick={() => void actions.exportFlattened()}

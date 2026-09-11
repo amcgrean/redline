@@ -14,6 +14,7 @@ import type {
   Geometry,
   Markup,
   MarkupPatch,
+  OptimizeReport,
   PageScale,
   Point,
   RedlineDocument,
@@ -30,6 +31,8 @@ import {
   countGroupOf,
   embedStampArtwork,
   flattenMarkups,
+  optimizePdf,
+  describeSavings,
   generateNM,
   openDocument,
   rectAt,
@@ -107,6 +110,7 @@ import {
 } from '../stamps';
 import type { StampRow } from '../db';
 import { downloadBytes } from '../download';
+import { workerQpdf } from '../compress';
 import { printDocument } from '../print';
 
 export type Tool =
@@ -196,6 +200,13 @@ export interface EditorUiState {
   stampWidth: number;
   /** A page operation (full rewrite + reload) is in flight. */
   pageBusy: boolean;
+  /** Compress dialog state. */
+  compress?: {
+    phase: 'running' | 'done' | 'error';
+    before: number;
+    report?: OptimizeReport;
+    error?: string;
+  };
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
   spacePan: boolean;
   /** Bumps on every document mutation so subscribers re-render. */
@@ -513,6 +524,72 @@ export const actions = {
         s.status = `Stamp failed: ${(error as Error).message}`;
       });
     }
+  },
+
+  // ---- compress ----
+
+  /** Run Optimize on the current bytes (unsaved markups included) and show the result. */
+  async optimize(): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    const current = (await saveIncremental(session.doc)).bytes;
+    set((s) => {
+      s.compress = { phase: 'running', before: current.length };
+    });
+    try {
+      const report = await optimizePdf(workerQpdf, current);
+      set((s) => {
+        s.compress = { phase: 'done', before: current.length, report };
+      });
+    } catch (error) {
+      set((s) => {
+        s.compress = { phase: 'error', before: current.length, error: (error as Error).message };
+      });
+    }
+  },
+
+  closeCompress(): void {
+    set((s) => {
+      s.compress = undefined;
+    });
+  },
+
+  downloadOptimized(): void {
+    const session = getSession();
+    const report = useEditorStore.getState().compress?.report;
+    if (!session || !report) return;
+    downloadBytes(
+      report.bytes,
+      `${session.file.name.replace(/\.pdf$/i, '')}.optimized.pdf`,
+      'application/pdf',
+    );
+    set((s) => {
+      s.status = `Downloaded optimized copy: ${describeSavings(report)}`;
+      s.compress = undefined;
+    });
+  },
+
+  /** Replace the open document with the optimized bytes; the next Save writes them. */
+  async applyOptimized(): Promise<void> {
+    const session = getSession();
+    const report = useEditorStore.getState().compress?.report;
+    if (!session || !report) return;
+    set((s) => {
+      s.pageBusy = true;
+    });
+    const before = (await saveIncremental(session.doc)).bytes;
+    const [doc, pdfjs] = await loadBoth(report.bytes);
+    replaceSessionDocument(session, doc, pdfjs, session.file);
+    session.pageHistory.push({ label: 'Optimize', bytes: before });
+    if (session.pageHistory.length > PAGE_HISTORY_LIMIT) session.pageHistory.shift();
+    bump({
+      status: `Optimized: ${describeSavings(report)}`,
+      selectedId: undefined,
+      selectedIds: [],
+      pageSelection: [],
+      pageBusy: false,
+      compress: undefined,
+    });
   },
 
   // ---- flatten ----

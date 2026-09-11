@@ -44,6 +44,9 @@ importers:
       '@cantoo/pdf-lib':
         specifier: ^2.9.0
         version: 2.9.2(html-entities@2.6.0)
+      '@jspawn/qpdf-wasm':
+        specifier: 0.0.2
+        version: 0.0.2
       '@redline/pdf-core':
         specifier: workspace:*
         version: link:../../packages/pdf-core
@@ -118,6 +121,9 @@ importers:
         specifier: ^2.9.0
         version: 2.9.2(html-entities@2.6.0)
     devDependencies:
+      '@jspawn/qpdf-wasm':
+        specifier: 0.0.2
+        version: 0.0.2
       '@napi-rs/canvas':
         specifier: ^1.0.8
         version: 1.0.8
@@ -459,6 +465,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@jspawn/qpdf-wasm@0.0.2':
+    resolution: {integrity: sha512-yPFv/0o5fvVEkJjEoXf393hfpZYUZfrRY8DaLq4AVw+KWZK0GiTVAecpYdxxVACbVKMHvBa+uHxtWlilYRiLzA==}
 
   '@napi-rs/canvas-android-arm64@1.0.8':
     resolution: {integrity: sha512-5+nkh8i3gt6lqS/d2jTZ1xAn6tdgtB4Lf1mW6T0Qm5/rXNwBuV1sAEyLEWan5o9gJPU/GuvHR3rvSeZ+FaGrbw==}
@@ -2041,6 +2050,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@jspawn/qpdf-wasm@0.0.2': {}
 
   '@napi-rs/canvas-android-arm64@1.0.8':
     optional: true

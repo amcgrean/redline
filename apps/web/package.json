@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.9.0",
+    "@jspawn/qpdf-wasm": "0.0.2",
     "@redline/pdf-core": "workspace:*",
     "@redline/toolchest": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

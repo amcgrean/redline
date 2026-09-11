@@ -131,3 +131,24 @@ export { BUILTIN_STAMPS, builtinStamp } from './stamps/library.js';
 export type { BuiltinStamp } from './stamps/library.js';
 export { flattenMarkups, appearanceMatrix } from './pages/flatten.js';
 export type { FlattenOptions } from './pages/flatten.js';
+export {
+  optimizePdf,
+  checkPdf,
+  describeSavings,
+  formatBytes,
+  OPTIMIZE_ARGS,
+} from './compress/optimize.js';
+export type {
+  QpdfRunner,
+  QpdfResult,
+  QpdfRunOptions,
+  OptimizeOptions,
+  OptimizeReport,
+} from './compress/optimize.js';
+export { createQpdfRunner } from './compress/emscripten.js';
+export type {
+  QpdfModule,
+  QpdfModuleFactory,
+  QpdfModuleOptions,
+  EmscriptenFS,
+} from './compress/emscripten.js';

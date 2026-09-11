@@ -17,6 +17,7 @@
     "@cantoo/pdf-lib": "^2.9.0"
   },
   "devDependencies": {
+    "@jspawn/qpdf-wasm": "0.0.2",
     "@napi-rs/canvas": "^1.0.8",
     "@types/pngjs": "^6.0.5",
     "pdfjs-dist": "^6.3.289",

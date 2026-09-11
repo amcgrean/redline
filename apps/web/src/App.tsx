@@ -10,6 +10,7 @@ import { Recents } from './Recents';
 import { FindBar } from './FindBar';
 import { ShortcutHelp } from './ShortcutHelp';
 import { ProfileDialog } from './ProfileDialog';
+import { CompressDialog } from './CompressDialog';
 import { Recover } from './Recover';
 import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
 import {
@@ -294,6 +295,7 @@ export function App() {
     snapEnabled,
     showProfile,
     profile,
+    compress,
   } = state;
 
   useEffect(() => {
@@ -681,6 +683,7 @@ export function App() {
       {showProfile && (
         <ProfileDialog profile={profile} onClose={() => actions.toggleProfile(false)} />
       )}
+      {compress && <CompressDialog onClose={() => actions.closeCompress()} />}
       <div className="hint">
         {hasDoc
           ? TOOLS.find((t) => t.id === tool)?.hint
