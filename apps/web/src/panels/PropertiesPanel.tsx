@@ -5,7 +5,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { Markup } from '@redline/pdf-core';
+import type { Markup, RedlineDocument } from '@redline/pdf-core';
+import { worldUnitsPerPoint } from '@redline/pdf-core';
+import { PRESETS } from './MeasurePanel';
 import { canRegenerateAppearance, countGroupOf } from '@redline/pdf-core';
 import { actions, useEditor } from '../store';
 
@@ -108,6 +110,7 @@ export function PropertiesPanel() {
         </label>
       )}
       <AttributesSection markup={markup} targets={targets} />
+      {markup.measure && <ScaleSection markup={markup} targets={targets} doc={doc} />}
 
       <div className="prop-row">
         <label className="prop-inline">
@@ -304,6 +307,85 @@ function AttributesSection({ markup, targets }: { markup: Markup; targets: () =>
           <span className="muted">{f.label}</span> {formatFormula(results[f.key])}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** A measurement's scale: the page's by default, or its own override (PLAN §3.7). */
+function ScaleSection({
+  markup,
+  targets,
+  doc,
+}: {
+  markup: Markup;
+  targets: () => string[];
+  doc: RedlineDocument;
+}) {
+  const pageScale = doc.pageScales.get(markup.pageIndex);
+  const own = markup.measure?.own === true;
+  const current = markup.measure?.scale;
+  const perInch = current ? worldUnitsPerPoint(current) * 72 : undefined;
+  const [custom, setCustom] = useState('');
+  useEffect(() => {
+    setCustom(perInch === undefined ? '' : String(Math.round(perInch * 10000) / 10000));
+  }, [markup.id, perInch]);
+  const apply = (worldPerInch: number) => {
+    if (!Number.isFinite(worldPerInch) || worldPerInch <= 0) return;
+    actions.setMarkupScale(
+      targets(),
+      { pageLength: 1, pageUnit: 'in', worldLength: worldPerInch, worldUnit: 'ft' },
+      markup.measure?.units,
+    );
+  };
+  return (
+    <div className="prop-attrs" data-testid="markup-scale">
+      <div className="muted small">
+        Scale: {own ? 'this markup' : 'page'}
+        {current ? ` · 1 in = ${(worldUnitsPerPoint(current) * 72).toFixed(3)} ft` : ''}
+      </div>
+      <label className="prop-inline">
+        1 in =
+        <input
+          type="number"
+          step="any"
+          min={0}
+          aria-label="Markup scale feet per inch"
+          value={custom}
+          disabled={markup.flags.locked}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') apply(Number((e.target as HTMLInputElement).value));
+          }}
+          onBlur={(e) => {
+            const v = Number(e.target.value);
+            if (perInch !== undefined && Math.abs(v - perInch) > 1e-6) apply(v);
+          }}
+        />
+        ft
+      </label>
+      <div className="row">
+        <select
+          aria-label="Markup scale preset"
+          value=""
+          disabled={markup.flags.locked}
+          onChange={(e) => {
+            const p = PRESETS.find((x) => x.label === e.target.value);
+            if (p) apply(1 / p.pageLength);
+          }}
+        >
+          <option value="">Preset…</option>
+          {PRESETS.map((p) => (
+            <option key={p.label} value={p.label}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        {own && pageScale && (
+          <button type="button" onClick={() => actions.setMarkupScale(targets(), null)}>
+            Use page scale
+          </button>
+        )}
+      </div>
     </div>
   );
 }

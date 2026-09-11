@@ -7,7 +7,7 @@
  */
 
 import type { PDFDict } from '@cantoo/pdf-lib';
-import { PDFArray, PDFName, PDFNumber, PDFString, type PDFContext } from '@cantoo/pdf-lib';
+import { PDFArray, PDFName, PDFNumber, PDFString, type PDFContext, PDFRef } from '@cantoo/pdf-lib';
 import type {
   Geometry,
   LineEnding,
@@ -17,6 +17,8 @@ import type {
   Rect,
   RedlineDocument,
   RGB,
+  Scale,
+  UnitFormat,
 } from '../types.js';
 import { generateUniqueNM } from '../ids.js';
 import { formatArea, formatLength } from '../measure/format.js';
@@ -654,7 +656,7 @@ function refreshMeasurement(
   mode: 'create' | 'move' = 'create',
 ): void {
   const context = doc.pdfDoc.context;
-  const pageScale = doc.pageScales.get(markup.pageIndex);
+  const pageScale = effectiveScale(doc, markup);
   const showCaption = markup.measure?.caption !== false;
 
   // A translation does not change the measured value, so an existing caption (Revu's
@@ -719,6 +721,74 @@ export interface MarkupPatch {
   attrs?: Record<string, string | number | boolean>;
   /** `/RLTool`. */
   tool?: string;
+}
+
+/** The scale a measurement is read with: its own override when it has one, else the page's. */
+export function effectiveScale(doc: RedlineDocument, markup: Markup): PageScale | undefined {
+  if (markup.measure?.own) {
+    return { scale: markup.measure.scale, units: markup.measure.units, fromDocument: false };
+  }
+  return doc.pageScales.get(markup.pageIndex);
+}
+
+/** Replace the markup's `/Measure` (reusing its object number when it is indirect). */
+function writeOwnMeasure(
+  doc: RedlineDocument,
+  markup: Markup,
+  scale: Scale,
+  units: UnitFormat,
+): void {
+  const context = doc.pdfDoc.context;
+  const dict = buildMeasureDict(context, { scale, format: units });
+  const existing = markup.raw.get(PDFName.of('Measure'));
+  if (existing instanceof PDFRef) {
+    context.assign(existing, dict);
+    markChanged(doc, existing);
+  } else {
+    markup.raw.set(PDFName.of('Measure'), context.register(dict));
+  }
+}
+
+/**
+ * Give one measurement its own scale (PLAN §3.7 per-markup override): its `/Measure` is
+ * rewritten, the value and caption recomputed, and page recalibration leaves it alone.
+ */
+export function setMarkupScale(
+  doc: RedlineDocument,
+  id: string,
+  scale: Scale,
+  units: UnitFormat,
+  now: Date = new Date(),
+): Markup {
+  const markup = requireMarkup(doc, id);
+  if (!markup.measure || !isMeasurementMarkup(markup)) return markup;
+  ensureNM(doc, markup);
+  writeOwnMeasure(doc, markup, scale, units);
+  markup.measure.scale = scale;
+  markup.measure.units = units;
+  markup.measure.own = true;
+  refreshMeasurement(doc, markup, styleFromMarkup(markup), 'create');
+  markup.raw.set(PDFName.of('M'), PDFString.of(pdfDate(now)));
+  if (markup.text) markup.text.modified = now;
+  markChanged(doc, markup.ref);
+  return markup;
+}
+
+/** Back to the page scale. Requires the page to have one. */
+export function clearMarkupScale(doc: RedlineDocument, id: string, now: Date = new Date()): Markup {
+  const markup = requireMarkup(doc, id);
+  const pageScale = doc.pageScales.get(markup.pageIndex);
+  if (!markup.measure || !pageScale) return markup;
+  ensureNM(doc, markup);
+  writeOwnMeasure(doc, markup, pageScale.scale, pageScale.units);
+  markup.measure.scale = pageScale.scale;
+  markup.measure.units = pageScale.units;
+  delete markup.measure.own;
+  refreshMeasurement(doc, markup, styleFromMarkup(markup), 'create');
+  markup.raw.set(PDFName.of('M'), PDFString.of(pdfDate(now)));
+  if (markup.text) markup.text.modified = now;
+  markChanged(doc, markup.ref);
+  return markup;
 }
 
 /** Show or hide a measurement's caption (`/Cap`), regenerating its appearance. */

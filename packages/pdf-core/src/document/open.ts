@@ -11,6 +11,8 @@ import { collectUsedNM, parseAnnotation } from '../annots/parse.js';
 import { lookupText } from '../annots/dict.js';
 import { readPageScale } from '../measure/viewport.js';
 import { computeMeasurement } from '../measure/compute.js';
+import { sameScale } from '../measure/units.js';
+import type { PageScale } from '../types.js';
 import { initSnapshot } from './save.js';
 
 export interface OpenOptions {
@@ -76,11 +78,23 @@ export async function openDocument(
         pageIndex,
         id,
       );
-      // Fill in the measurement block now that the page's scale is known.
-      if (markup.measure && scale) {
-        markup.measure.scale = scale.scale;
-        markup.measure.units = scale.units;
-        markup.measure.computed = computeMeasurement(markup, scale);
+      // Fill in the measurement block now that the page's scale is known. A markup whose
+      // own /Measure reads differently from the page keeps its own scale (`own`).
+      if (markup.measure) {
+        const ownScale: PageScale | undefined = markup.measure.own
+          ? { scale: markup.measure.scale, units: markup.measure.units, fromDocument: true }
+          : undefined;
+        const differs =
+          ownScale !== undefined &&
+          (scale === undefined || !sameScale(ownScale.scale, scale.scale));
+        const effective = differs ? ownScale : scale;
+        if (effective) {
+          markup.measure.scale = effective.scale;
+          markup.measure.units = effective.units;
+          markup.measure.computed = computeMeasurement(markup, effective);
+        }
+        if (differs) markup.measure.own = true;
+        else delete markup.measure.own;
       }
       markups.push(markup);
     }

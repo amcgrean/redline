@@ -93,6 +93,11 @@ export interface MarkupText {
 export interface MarkupMeasure {
   scale: Scale;
   units: UnitFormat;
+  /**
+   * True when the markup's own `/Measure` differs from the page scale (a per-markup
+   * override, PLAN §3.7). Page recalibration leaves such markups alone.
+   */
+  own?: boolean;
   caption: boolean;
   computed: {
     length?: number;

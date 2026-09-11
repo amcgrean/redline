@@ -208,7 +208,7 @@ function refreshMeasurementsOnPage(doc: RedlineDocument, pageIndex: number): voi
   const pageScale = doc.pageScales.get(pageIndex);
   if (!pageScale) return;
   for (const markup of doc.markups) {
-    if (markup.pageIndex !== pageIndex || !markup.measure) continue;
+    if (markup.pageIndex !== pageIndex || !markup.measure || markup.measure.own) continue;
     markup.measure.scale = pageScale.scale;
     markup.measure.units = pageScale.units;
     markup.measure.computed = computeMeasurement(markup, pageScale);

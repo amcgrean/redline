@@ -46,6 +46,8 @@ import {
   reorderMarkup,
   setMarkupOrder,
   setMeasurementCaption,
+  setMarkupScale,
+  clearMarkupScale,
   restoreMarkup,
   clearPageScale,
   deleteMarkup,
@@ -439,6 +441,40 @@ export function ungroupCommand(doc: RedlineDocument, ids: string[]): Command {
       for (const members of groups.values()) {
         const alive = members.filter((m) => doc.markups.some((x) => x.id === m));
         if (alive.length > 1) groupMarkups(doc, alive);
+      }
+    },
+  };
+}
+
+/** Per-markup scale override; `scale` null returns the markups to the page scale. */
+export function markupScaleCommand(
+  doc: RedlineDocument,
+  ids: string[],
+  scale: Scale | null,
+  units?: UnitFormat,
+): Command {
+  const previous = new Map<string, { scale: Scale; units: UnitFormat } | null>();
+  return {
+    label: scale ? 'Set markup scale' : 'Use page scale',
+    do() {
+      for (const id of ids) {
+        const m = doc.markups.find((x) => x.id === id);
+        if (!m?.measure) continue;
+        if (!previous.has(id)) {
+          previous.set(
+            id,
+            m.measure.own ? { scale: m.measure.scale, units: m.measure.units } : null,
+          );
+        }
+        if (scale) setMarkupScale(doc, id, scale, units ?? m.measure.units);
+        else clearMarkupScale(doc, id);
+      }
+    },
+    undo() {
+      for (const [id, was] of previous) {
+        if (!doc.markups.some((x) => x.id === id)) continue;
+        if (was) setMarkupScale(doc, id, was.scale, was.units);
+        else clearMarkupScale(doc, id);
       }
     },
   };

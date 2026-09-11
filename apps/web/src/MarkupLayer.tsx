@@ -1040,6 +1040,7 @@ function menuItems(
       : []),
     ...(markup.measure
       ? [
+          { label: 'Change scale…', onSelect: () => actions.setPanel('properties') },
           {
             label: markup.measure.caption === false ? 'Show caption' : 'Hide caption',
             disabled: locked,

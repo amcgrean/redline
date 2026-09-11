@@ -89,3 +89,11 @@ export function areaUnitLabel(display: DisplayFormat): string {
       return 'sq cm';
   }
 }
+
+/** True when two scales map points to the same world length (within float noise). */
+export function sameScale(a: Scale, b: Scale): boolean {
+  const pa = worldUnitsPerPoint(a);
+  const pb = worldUnitsPerPoint(b);
+  const unitsMatch = a.worldUnit === b.worldUnit;
+  return unitsMatch && Math.abs(pa - pb) <= Math.max(pa, pb) * 1e-6;
+}

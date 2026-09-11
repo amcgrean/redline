@@ -98,6 +98,7 @@ import {
   duplicateCommand,
   lockCommand,
   hideCommand,
+  markupScaleCommand,
   groupCommand,
   ungroupCommand,
   reorderCommand,
@@ -1583,6 +1584,15 @@ export const actions = {
     const session = getSession();
     if (!session) return;
     const command = reorderCommand(session.doc, id, where);
+    session.history.run(command);
+    bump({ status: command.label });
+  },
+
+  /** Per-markup scale (PLAN §3.7). `scale` null = back to the page scale. */
+  setMarkupScale(ids: string[], scale: Scale | null, units?: UnitFormat): void {
+    const session = getSession();
+    if (!session || ids.length === 0) return;
+    const command = markupScaleCommand(session.doc, ids, scale, units);
     session.history.run(command);
     bump({ status: command.label });
   },

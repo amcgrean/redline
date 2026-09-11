@@ -91,6 +91,9 @@ export {
   DEFAULT_POLYLINE_STYLE,
   DEFAULT_COUNT_STYLE,
   setMeasurementCaption,
+  setMarkupScale,
+  clearMarkupScale,
+  effectiveScale,
 } from './annots/write.js';
 export type {
   MeasurementOptions,
@@ -168,3 +171,4 @@ export type { SplitPart } from './pages/split.js';
 export { setMarkupHidden, reorderMarkup, markupOrder, setMarkupOrder } from './annots/order.js';
 export type { MarkupOrder } from './annots/order.js';
 export { groupMarkups, ungroupMarkups, groupMembers, isGrouped } from './annots/group.js';
+export { sameScale } from './measure/units.js';

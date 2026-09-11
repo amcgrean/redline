@@ -18,6 +18,7 @@ import type {
   Rect,
 } from '../types.js';
 import { boundsOf, toPoints } from '../measure/geometry.js';
+import { parseMeasureDict } from '../measure/viewport.js';
 import {
   lookupArray,
   lookupBool,
@@ -244,9 +245,14 @@ export function parseAnnotation(ref: PDFRef, dict: PDFDict, pageIndex: number, n
   // `/Cap` is Revu's "show the caption" flag; the measure block is filled in by
   // `openDocument`, which knows the page's scale.
   if (intent?.endsWith('Dimension') || dict.has(PDFName.of('Measure'))) {
+    // The markup's own /Measure, when readable, is provisional: openDocument compares it
+    // with the page scale and keeps `own` only when the two differ.
+    const ownDict = dict.lookup(PDFName.of('Measure'));
+    const own = ownDict instanceof PDFDict ? parseMeasureDict(ownDict) : undefined;
     markup.measure = {
-      scale: { pageLength: 1, pageUnit: 'in', worldLength: 1, worldUnit: 'ft' },
-      units: { display: 'ft-in', precision: 16 },
+      scale: own?.scale ?? { pageLength: 1, pageUnit: 'in', worldLength: 1, worldUnit: 'ft' },
+      units: own?.units ?? { display: 'ft-in', precision: 16 },
+      ...(own && { own: true }),
       caption: lookupBool(dict, 'Cap') ?? false,
       computed: {},
     };
