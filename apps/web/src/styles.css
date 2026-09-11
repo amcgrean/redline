@@ -907,3 +907,16 @@ table.markups th .sort-arrow {
   background: #e3f2fd;
   border-color: #0288d1;
 }
+
+.toolbar button.attention {
+  border-color: #ef6c00;
+  color: #ef6c00;
+}
+form[aria-label='Profile'] .row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+form[aria-label='Profile'] .row .spacer {
+  flex: 1;
+}

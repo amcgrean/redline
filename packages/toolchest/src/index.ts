@@ -25,3 +25,11 @@ export type {
   ToolFormula,
 } from './schema.js';
 export { defaultToolChest, defaultTools, newId } from './defaults.js';
+export {
+  ProfileSchema,
+  PROFILE_SCHEMA_URL,
+  parseProfile,
+  serializeProfile,
+  defaultProfile,
+} from './profile.js';
+export type { Profile, ProfileInput } from './profile.js';

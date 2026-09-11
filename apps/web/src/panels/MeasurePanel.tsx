@@ -41,8 +41,13 @@ export function MeasurePanel() {
   const { doc, currentPage, hasDoc } = useEditor();
   const scope = useEditorStore((s) => s.scaleScope);
   const pageScale = doc?.pageScales.get(currentPage);
-  const [display, setDisplay] = useState<DisplayFormat>(pageScale?.units.display ?? 'ft-in');
-  const [precision, setPrecision] = useState(String(pageScale?.units.precision ?? 16));
+  const profileUnits = useEditorStore.getState().profile.units;
+  const [display, setDisplay] = useState<DisplayFormat>(
+    pageScale?.units.display ?? profileUnits.display,
+  );
+  const [precision, setPrecision] = useState(
+    String(pageScale?.units.precision ?? profileUnits.precision),
+  );
   const [customFeet, setCustomFeet] = useState('');
 
   if (!hasDoc || !doc) return <div className="panel-empty">Open a document to set its scale.</div>;

@@ -34,7 +34,11 @@ import {
   serializeToolChest,
   type Tool as ChestTool,
   type ToolChest,
+  defaultProfile,
+  parseProfile,
+  serializeProfile,
 } from '@redline/toolchest';
+import type { Profile } from '@redline/toolchest';
 import { countGroupOf as isCount, type MeasurementStyle, type CountStyle } from '@redline/pdf-core';
 import { fromHex, toHex } from '../color';
 import {
@@ -148,6 +152,10 @@ export interface EditorUiState {
   clipboard: { ids: string[]; page: number };
   /** `?` overlay. */
   showHelp: boolean;
+  /** Profile dialog. */
+  showProfile: boolean;
+  /** The user's profile (author, default units, default style). */
+  profile: Profile;
   /** Snap to endpoints/midpoints while drawing (Alt overrides for one point). */
   snapEnabled: boolean;
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
@@ -186,12 +194,14 @@ export const useEditorStore = create<EditorUiState>()(
     spacePan: false,
     clipboard: { ids: [], page: 0 },
     showHelp: false,
+    showProfile: false,
+    profile: defaultProfile('local'),
     snapEnabled: true,
     currentPage: 0,
     version: 0,
     dirty: false,
     status: 'Drop a PDF to begin',
-    author: 'Aaron McGrean',
+    author: '',
     canUndo: false,
     canRedo: false,
   })),
@@ -335,6 +345,78 @@ export const actions = {
       const active = s.chest?.tools.find((t) => t.id === s.activeToolId);
       if (active && active.kind !== tool) s.activeToolId = undefined;
     });
+  },
+
+  // ---- profile ----
+
+  /** Load the newest stored profile, or seed the default. Runs before the chest. */
+  async loadProfile(): Promise<void> {
+    let profile: Profile | undefined;
+    try {
+      const rows = await db.profiles.orderBy('updatedAt').reverse().toArray();
+      for (const row of rows) {
+        try {
+          profile = parseProfile(row.json);
+          break;
+        } catch {
+          // skip a corrupt row
+        }
+      }
+    } catch {
+      // IndexedDB unavailable: in-memory default.
+    }
+    if (!profile) {
+      profile = defaultProfile(newId());
+      await persistProfile(profile);
+    }
+    set((s) => {
+      s.profile = profile;
+      s.author = profile.author;
+    });
+  },
+
+  updateProfile(patch: Partial<Omit<Profile, 'version' | 'id'>>): void {
+    const { profile } = useEditorStore.getState();
+    const next: Profile = { ...profile, ...patch, updatedAt: new Date().toISOString() };
+    set((s) => {
+      s.profile = next;
+      s.author = next.author;
+      s.status = 'Profile saved';
+    });
+    void persistProfile(next);
+  },
+
+  toggleProfile(show?: boolean): void {
+    set((s) => {
+      s.showProfile = show ?? !s.showProfile;
+    });
+  },
+
+  exportProfile(): void {
+    const { profile } = useEditorStore.getState();
+    const blob = new Blob([serializeProfile(profile)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(profile.author || profile.name).replace(/[^\w.-]+/g, '_')}.profile.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
+
+  async importProfile(text: string): Promise<void> {
+    try {
+      const profile = parseProfile(text);
+      await persistProfile(profile);
+      set((s) => {
+        s.profile = profile;
+        s.author = profile.author;
+        s.status = `Imported profile "${profile.name}"`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `Not a valid profile: ${(error as Error).message.split('\n')[0]}`;
+      });
+    }
   },
 
   // ---- tool chest ----
@@ -1057,6 +1139,18 @@ export const actions = {
     });
   },
 };
+
+async function persistProfile(profile: Profile): Promise<void> {
+  try {
+    await db.profiles.put({
+      id: profile.id,
+      json: serializeProfile(profile),
+      updatedAt: Date.now(),
+    });
+  } catch {
+    // Storage unavailable: the profile lives for this session only.
+  }
+}
 
 async function persistChest(chest: ToolChest): Promise<void> {
   try {

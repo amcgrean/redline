@@ -11,6 +11,8 @@ import { formatFeetInches } from '@redline/pdf-core';
 interface Props {
   pointsDistance: number;
   current?: PageScale;
+  /** Profile defaults, used when the page has no scale yet. */
+  defaults?: UnitFormat;
   onApply: (scale: Scale, units: UnitFormat) => void;
   onCancel: () => void;
 }
@@ -30,10 +32,14 @@ export function parseFeet(text: string): number | undefined {
   return m[1] ? -value : value;
 }
 
-export function CalibrateDialog({ pointsDistance, current, onApply, onCancel }: Props) {
+export function CalibrateDialog({ pointsDistance, current, defaults, onApply, onCancel }: Props) {
   const [distance, setDistance] = useState('');
-  const [display, setDisplay] = useState<DisplayFormat>(current?.units.display ?? 'ft-in');
-  const [precision, setPrecision] = useState(String(current?.units.precision ?? 16));
+  const [display, setDisplay] = useState<DisplayFormat>(
+    current?.units.display ?? defaults?.display ?? 'ft-in',
+  );
+  const [precision, setPrecision] = useState(
+    String(current?.units.precision ?? defaults?.precision ?? 16),
+  );
   const feet = parseFeet(distance);
   const valid = feet !== undefined && feet > 0 && pointsDistance > 0;
 

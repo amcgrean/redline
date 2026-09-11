@@ -33,6 +33,13 @@ export interface ToolChestRow {
   updatedAt: number;
 }
 
+export interface ProfileRow {
+  id: string;
+  /** The profile as `*.profile.json` text, validated on read. */
+  json: string;
+  updatedAt: number;
+}
+
 export interface RecentEntry {
   id?: number;
   name: string;
@@ -50,6 +57,7 @@ export const db = new Dexie('redline') as Dexie & {
   autosaves: EntityTable<AutosaveEntry, 'key'>;
   autosaveBlobs: EntityTable<AutosaveBlob, 'key'>;
   toolchests: EntityTable<ToolChestRow, 'id'>;
+  profiles: EntityTable<ProfileRow, 'id'>;
 };
 
 db.version(1).stores({
@@ -65,6 +73,13 @@ db.version(3).stores({
   autosaves: 'key, savedAt, name',
   autosaveBlobs: 'key',
   toolchests: 'id, updatedAt',
+});
+db.version(4).stores({
+  recents: '++id, openedAt, name',
+  autosaves: 'key, savedAt, name',
+  autosaveBlobs: 'key',
+  toolchests: 'id, updatedAt',
+  profiles: 'id, updatedAt',
 });
 
 /** Record an open. Same-named entries collapse into one so the list stays useful. */

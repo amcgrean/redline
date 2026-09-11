@@ -695,6 +695,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
             calibrating[1].y - calibrating[0].y,
           )}
           current={pageScale}
+          defaults={useEditorStore.getState().profile.units}
           onCancel={() => setCalibrating(undefined)}
           onApply={(scale, units) => {
             setCalibrating(undefined);

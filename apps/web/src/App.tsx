@@ -9,6 +9,7 @@ import { Panel } from './panels/Panel';
 import { Recents } from './Recents';
 import { FindBar } from './FindBar';
 import { ShortcutHelp } from './ShortcutHelp';
+import { ProfileDialog } from './ProfileDialog';
 import { Recover } from './Recover';
 import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
 import {
@@ -285,6 +286,8 @@ export function App() {
     autosave,
     showHelp,
     snapEnabled,
+    showProfile,
+    profile,
   } = state;
 
   useEffect(() => {
@@ -314,9 +317,9 @@ export function App() {
     };
   }, []);
 
-  // The tool chest lives in IndexedDB; load (or seed) it once.
+  // Profile then tool chest live in IndexedDB; load (or seed) them once.
   useEffect(() => {
-    void actions.loadToolChest();
+    void actions.loadProfile().then(() => actions.loadToolChest());
   }, []);
 
   // Paste a PDF from the clipboard (e.g. copied in Explorer).
@@ -597,6 +600,15 @@ export function App() {
         </button>
         <button
           type="button"
+          onClick={() => actions.toggleProfile(true)}
+          title="Profile: author name, default units and style"
+          aria-label="Profile"
+          className={profile.author ? '' : 'attention'}
+        >
+          {profile.author || 'Set your name…'}
+        </button>
+        <button
+          type="button"
           onClick={() => actions.toggleSnap()}
           aria-pressed={snapEnabled}
           className={snapEnabled ? 'active' : ''}
@@ -659,6 +671,9 @@ export function App() {
       )}
       <FindBar />
       {showHelp && <ShortcutHelp onClose={() => actions.toggleHelp(false)} />}
+      {showProfile && (
+        <ProfileDialog profile={profile} onClose={() => actions.toggleProfile(false)} />
+      )}
       <div className="hint">
         {hasDoc
           ? TOOLS.find((t) => t.id === tool)?.hint
