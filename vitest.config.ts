@@ -16,6 +16,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'toolchest',
+          root: './packages/toolchest',
+          include: ['test/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
+        test: {
           name: 'corpus',
           root: './packages/pdf-core',
           include: ['test/corpus.test.ts'],
