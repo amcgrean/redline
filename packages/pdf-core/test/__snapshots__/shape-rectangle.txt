@@ -1,0 +1,48 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 100 100 400 300 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /ExtGState <<
+          /GSa <<
+            /CA 1
+            /Type /ExtGState
+            /ca 0.3
+          >>
+        >>
+        /ProcSet [ /PDF ]
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | /GSa gs
+      | 0.83 0.18 0.18 RG
+      | 2 w
+      | 1 0.9 0 rg
+      | 101 101 298 198 re
+      | B
+      | Q
+  >>
+  /BS <<
+    /S /S
+    /Type /Border
+    /W 2
+  >>
+  /C [ 0.83 0.18 0.18 ]
+  /CA 1
+  /CreationDate (D:20260908101500-05'00')
+  /F 4
+  /IC [ 1 0.9 0 ]
+  /M (D:20260908101500-05'00')
+  /NM (RECTANGLEABCDEFG)
+  /P ref(3)
+  /Rect [ 100 100 400 300 ]
+  /Subj (Note)
+  /Subtype /Square
+  /T (Aaron McGrane)
+  /Type /Annot
+>>

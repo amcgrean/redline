@@ -14,6 +14,19 @@ export {
   parseMeasureDict,
 } from './measure/viewport.js';
 export { deleteMarkup, restoreMarkup, pageHasNoAnnots } from './annots/delete.js';
+export {
+  addShapeMarkup,
+  regenerateShapeAppearance,
+  shapeAppearance,
+  shapeBounds,
+  DEFAULT_SHAPE_STYLE,
+} from './annots/shapes.js';
+export type { ShapeKind, ShapeStyle, ShapeOptions, ShapeGeometry } from './annots/shapes.js';
+export {
+  buildRectAppearance,
+  buildEllipseAppearance,
+  buildInkAppearance,
+} from './annots/ap/shapes.js';
 export { buildMeasureDict } from './measure/measureDict.js';
 export { computeMeasurement } from './measure/compute.js';
 export {

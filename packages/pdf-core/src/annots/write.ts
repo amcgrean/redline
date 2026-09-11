@@ -6,7 +6,7 @@
  * its OWN `/Measure` object rather than a reference shared with the page viewport.
  */
 
-import type { PDFDict, PDFRef } from '@cantoo/pdf-lib';
+import type { PDFDict } from '@cantoo/pdf-lib';
 import { PDFArray, PDFName, PDFNumber, PDFString, type PDFContext } from '@cantoo/pdf-lib';
 import type {
   Geometry,
@@ -24,6 +24,8 @@ import { buildMeasureDict } from '../measure/measureDict.js';
 import { computeMeasurement } from '../measure/compute.js';
 import { boundsOf, translatePoints, translateRect } from '../measure/geometry.js';
 import { colorArray, lookupText, numArray, pdfDate, round } from './dict.js';
+import { borderStyle, lineEndingsArray, writeCommonKeys } from './common.js';
+import { regenerateShapeAppearance } from './shapes.js';
 import { isPlaceholderId, requireMarkup } from '../document/open.js';
 import { annotsArrayForWrite, markChanged } from '../document/save.js';
 import { buildFormXObject, setAppearance } from './ap/form.js';
@@ -125,52 +127,6 @@ function requirePageScale(doc: RedlineDocument, pageIndex: number): PageScale {
     throw new Error(`Page ${pageIndex + 1} has no scale; call setPageScale first`);
   }
   return scale;
-}
-
-function borderStyle(context: PDFContext, width: number, dash?: number[]): PDFDict {
-  const bs = context.obj({}) as PDFDict;
-  bs.set(PDFName.of('Type'), PDFName.of('Border'));
-  bs.set(PDFName.of('W'), PDFNumber.of(round(width)));
-  if (dash?.length) {
-    bs.set(PDFName.of('S'), PDFName.of('D'));
-    bs.set(PDFName.of('D'), numArray(context, dash));
-  } else {
-    bs.set(PDFName.of('S'), PDFName.of('S'));
-  }
-  return bs;
-}
-
-function lineEndingsArray(context: PDFContext, ends: [LineEnding, LineEnding]): PDFArray {
-  const arr = PDFArray.withContext(context);
-  arr.push(PDFName.of(ends[0]));
-  arr.push(PDFName.of(ends[1]));
-  return arr;
-}
-
-/** Keys shared by every new markup (PLAN §3.4 "New markups get …"). */
-function writeCommonKeys(
-  context: PDFContext,
-  annot: PDFDict,
-  pageRef: PDFRef,
-  nm: string,
-  options: MeasurementOptions,
-  style: MeasurementStyle,
-  now: Date,
-): void {
-  const stamp = PDFString.of(pdfDate(now));
-  annot.set(PDFName.of('Type'), PDFName.of('Annot'));
-  annot.set(PDFName.of('P'), pageRef);
-  annot.set(PDFName.of('NM'), PDFString.of(nm));
-  annot.set(PDFName.of('T'), PDFString.of(options.author));
-  annot.set(PDFName.of('Subj'), PDFString.of(options.subject));
-  annot.set(PDFName.of('CreationDate'), stamp);
-  annot.set(PDFName.of('M'), stamp);
-  // Print flag only. Hidden, NoView and Locked are all clear.
-  annot.set(PDFName.of('F'), PDFNumber.of(4));
-  annot.set(PDFName.of('C'), colorArray(context, style.stroke));
-  if (style.fill) annot.set(PDFName.of('IC'), colorArray(context, style.fill));
-  annot.set(PDFName.of('CA'), PDFNumber.of(round(style.opacity)));
-  annot.set(PDFName.of('BS'), borderStyle(context, style.width, style.dash));
 }
 
 /** Attach a freshly built `/AP /N` and set `/Rect` from its bounds. */
@@ -740,11 +696,43 @@ export interface MarkupPatch {
 /** True when Redline can rebuild this markup's appearance from its geometry. */
 export function canRegenerateAppearance(markup: Markup): boolean {
   if (countGroupOf(markup)) return true;
-  const isMeasurement =
+  if (isMeasurementMarkup(markup)) {
+    return markup.geometry.kind === 'line' || markup.geometry.kind === 'poly';
+  }
+  return isRedlineShape(markup);
+}
+
+function isMeasurementMarkup(markup: Markup): boolean {
+  return (
     markup.intent === 'LineDimension' ||
     markup.intent === 'PolyLineDimension' ||
-    markup.intent === 'PolygonDimension';
-  return isMeasurement && (markup.geometry.kind === 'line' || markup.geometry.kind === 'poly');
+    markup.intent === 'PolygonDimension'
+  );
+}
+
+/**
+ * A plain shape whose appearance Redline can rebuild: Square/Circle/Line/PolyLine/
+ * Polygon/Ink with geometry we parsed. Foreign shapes qualify too — their dictionary is
+ * standard — so a restyled Revu rectangle gets a fresh, correct appearance.
+ */
+function isRedlineShape(markup: Markup): boolean {
+  const g = markup.geometry;
+  // A cloud or other border effect is drawn by its author; redrawing it plain would lose it.
+  if (markup.raw.has(PDFName.of('BE'))) return false;
+  switch (markup.rawSubtype) {
+    case 'Square':
+    case 'Circle':
+      return g.kind === 'rect';
+    case 'Line':
+      return g.kind === 'line';
+    case 'PolyLine':
+    case 'Polygon':
+      return g.kind === 'poly';
+    case 'Ink':
+      return g.kind === 'ink';
+    default:
+      return false;
+  }
 }
 
 /**
@@ -795,7 +783,9 @@ export function updateMarkupProperties(
   }
 
   if (canRegenerateAppearance(markup)) {
-    if (countGroupOf(markup)) {
+    if (!countGroupOf(markup) && !isMeasurementMarkup(markup)) {
+      regenerateShapeAppearance(doc, markup);
+    } else if (countGroupOf(markup)) {
       const rect = markup.rect;
       const radius = (rect[2] - rect[0]) / 2 - Math.max(markup.style.width, 1);
       const appearance = buildCircleAppearance({
@@ -880,9 +870,11 @@ export function setMarkupGeometry(
       break;
   }
 
-  if (canRegenerateAppearance(markup) && !countGroupOf(markup)) {
+  if (canRegenerateAppearance(markup) && !countGroupOf(markup) && isMeasurementMarkup(markup)) {
     // A real edit: recompute the value, caption, /Contents (+ /RC) and the appearance.
     refreshMeasurement(doc, markup, styleFromMarkup(markup), 'create');
+  } else if (!countGroupOf(markup) && regenerateShapeAppearance(doc, markup)) {
+    // A shape: redraw at the new geometry (a stretched /AP would distort the stroke).
   } else {
     const rect: Rect =
       geometry.kind === 'rect' || geometry.kind === 'none' || geometry.kind === 'quads'

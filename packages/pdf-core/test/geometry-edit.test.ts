@@ -105,24 +105,21 @@ describe('setMarkupGeometry', () => {
     }
   });
 
-  it('a foreign rectangle keeps its appearance stream and just gets a new /Rect', async () => {
+  it('a foreign note keeps its appearance stream and just gets a new /Rect', async () => {
     const doc = await openDocument(await syntheticBluebeam());
-    const square = doc.markups.find((m) => m.rawSubtype === 'Square' || m.rawSubtype === 'Stamp');
-    expect(square).toBeDefined();
-    const before = keyMap(square!.raw, doc.pdfDoc.context);
-    const [x0, y0, x1, y1] = square!.rect;
+    const stamp = doc.markups.find((m) => m.rawSubtype === 'Text');
+    expect(stamp).toBeDefined();
+    const before = keyMap(stamp!.raw, doc.pdfDoc.context);
+    const [x0, y0, x1, y1] = stamp!.rect;
     setMarkupGeometry(
       doc,
-      square!.id,
-      {
-        kind: square!.geometry.kind === 'rect' ? 'rect' : 'none',
-        rect: [x0, y0, x1 + 50, y1 + 30],
-      } as never,
+      stamp!.id,
+      { kind: stamp!.geometry.kind, rect: [x0, y0, x1 + 50, y1 + 30] } as never,
       LATER,
     );
-    const after = keyMap(square!.raw, doc.pdfDoc.context);
+    const after = keyMap(stamp!.raw, doc.pdfDoc.context);
     expect(changedKeys(before, after).sort()).toEqual(['M', 'Rect']);
-    expect(square!.rect).toEqual([x0, y0, x1 + 50, y1 + 30]);
+    expect(stamp!.rect).toEqual([x0, y0, x1 + 50, y1 + 30]);
   });
 
   it('refuses to change the geometry kind', async () => {
