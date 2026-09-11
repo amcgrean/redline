@@ -129,3 +129,5 @@ export { bakeFields, formatStampDate, formatStampTime } from './stamps/fields.js
 export type { FieldContext } from './stamps/fields.js';
 export { BUILTIN_STAMPS, builtinStamp } from './stamps/library.js';
 export type { BuiltinStamp } from './stamps/library.js';
+export { flattenMarkups, appearanceMatrix } from './pages/flatten.js';
+export type { FlattenOptions } from './pages/flatten.js';

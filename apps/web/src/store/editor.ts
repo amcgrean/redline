@@ -29,6 +29,7 @@ import {
   BUILTIN_STAMPS,
   countGroupOf,
   embedStampArtwork,
+  flattenMarkups,
   generateNM,
   openDocument,
   rectAt,
@@ -105,6 +106,7 @@ import {
   type ActiveStamp,
 } from '../stamps';
 import type { StampRow } from '../db';
+import { downloadBytes } from '../download';
 import { printDocument } from '../print';
 
 export type Tool =
@@ -511,6 +513,46 @@ export const actions = {
         s.status = `Stamp failed: ${(error as Error).message}`;
       });
     }
+  },
+
+  // ---- flatten ----
+
+  /**
+   * Download a flattened copy (PLAN §3.9: the open file stays unflattened). The copy is
+   * built from the current bytes so unsaved markups are included.
+   */
+  async exportFlattened(): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    set((s) => {
+      s.status = 'Flattening…';
+    });
+    try {
+      const current = (await saveIncremental(session.doc)).bytes;
+      const copy = await openDocument(current);
+      const count = flattenMarkups(copy);
+      const out = await saveFull(copy);
+      const name = `${session.file.name.replace(/\.pdf$/i, '')}.flattened.pdf`;
+      downloadBytes(out, name, 'application/pdf');
+      set((s) => {
+        s.status = `Flattened ${count} markup${count === 1 ? '' : 's'} into ${name}`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `Flatten failed: ${(error as Error).message}`;
+      });
+    }
+  },
+
+  /** Flatten the given markups into the open document (a rewrite; undo via page history). */
+  flattenSelected(ids: string[]): void {
+    if (ids.length === 0) return;
+    void actions.pageOperation(
+      ids.length === 1 ? 'Flatten markup' : `Flatten ${ids.length} markups`,
+      (doc) => {
+        flattenMarkups(doc, { ids });
+      },
+    );
   },
 
   // ---- pages ----

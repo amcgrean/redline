@@ -1016,6 +1016,11 @@ function menuItems(
       onSelect: () => actions.duplicate(),
     },
     { label: locked ? 'Unlock' : 'Lock', onSelect: () => actions.setLocked(ids, !locked) },
+    {
+      label: many ? `Flatten ${ids.length} markups` : 'Flatten',
+      disabled: locked,
+      onSelect: () => actions.flattenSelected(ids),
+    },
     { separator: true, label: '' },
     {
       label: many ? `Delete ${ids.length} markups` : 'Delete',

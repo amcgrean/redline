@@ -169,6 +169,15 @@ export function PagesPanel({ pdfjs }: { pdfjs: PdfjsDocument }) {
           <button
             type="button"
             disabled={busy}
+            title="Download a copy with every markup baked into the pages"
+            aria-label="Flatten copy"
+            onClick={() => void actions.exportFlattened()}
+          >
+            Flatten copy…
+          </button>
+          <button
+            type="button"
+            disabled={busy}
             title="Save the selected pages as a new PDF"
             aria-label="Extract pages"
             onClick={async () => {
