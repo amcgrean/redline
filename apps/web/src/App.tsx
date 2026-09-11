@@ -11,8 +11,17 @@ import { FindBar } from './FindBar';
 import { ShortcutHelp } from './ShortcutHelp';
 import { ProfileDialog } from './ProfileDialog';
 import { CompressDialog } from './CompressDialog';
+import { MenuBar } from './MenuBar';
+import { LaserPointer, ReviewBar } from './ReviewMode';
 import { Recover } from './Recover';
-import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
+import {
+  actions,
+  useEditor,
+  type LayoutMode,
+  type Tool,
+  type ZoomMode,
+  useEditorStore,
+} from './store';
 import {
   handleFromDrop,
   pickFileHandle,
@@ -140,6 +149,17 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     event.preventDefault();
     if (hasDoc && dirty) void actions.save(saveBytes);
     return;
+  }
+  if (ctrl && event.shiftKey && key === 'f') {
+    event.preventDefault();
+    if (hasDoc) actions.toggleReview();
+    return;
+  }
+  if (useEditorStore.getState().review) {
+    if (event.key === 'Escape') return actions.toggleReview(false);
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') return actions.nextPage();
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') return actions.previousPage();
+    if (key === 'l' && !ctrl) return actions.toggleLaser();
   }
   if (ctrl && key === 'f') {
     event.preventDefault();
@@ -296,6 +316,8 @@ export function App() {
     showProfile,
     profile,
     compress,
+    review,
+    laser,
   } = state;
 
   useEffect(() => {
@@ -429,7 +451,7 @@ export function App() {
 
   return (
     <div
-      className={`app${over ? ' over' : ''}`}
+      className={`app${over ? ' over' : ''}${review ? ' review' : ''}${laser ? ' laser' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
         setOver(true);
@@ -439,6 +461,11 @@ export function App() {
       }}
       onDrop={onDrop}
     >
+      <MenuBar
+        onOpen={() => void onOpen()}
+        onSave={() => void actions.save(saveBytes)}
+        onPrint={() => void actions.print()}
+      />
       <div className="toolbar">
         <strong>Redline</strong>
         <input
@@ -719,6 +746,8 @@ export function App() {
         <div className="main">
           <Viewer key={pdfjs.doc.fingerprints[0] ?? activeId} pdfjs={pdfjs.doc} />
           <Panel key={`panel-${activeId}`} pdfjs={pdfjs.doc} />
+          {review && <ReviewBar />}
+          {review && laser && <LaserPointer />}
         </div>
       ) : (
         <div className="empty">

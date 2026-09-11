@@ -1084,3 +1084,88 @@ form[aria-label='Profile'] .row .spacer {
   gap: 6px;
   align-items: center;
 }
+
+/* Menu bar (PLAN §3.11). */
+.menubar {
+  display: flex;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #ececec;
+  border-bottom: 1px solid #d0d0d0;
+  font-size: 13px;
+}
+.menubar > button {
+  border: none;
+  background: transparent;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+.menubar > button:hover,
+.menubar > button.open {
+  background: #d9e7f5;
+}
+
+/* Review mode: chrome hidden, floating bar, laser pointer. */
+.app.review .menubar,
+.app.review .toolbar,
+.app.review .tabs,
+.app.review .hint,
+.app.review .panel {
+  display: none;
+}
+.app.review.laser .viewer {
+  cursor: none;
+}
+.review-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(30, 30, 30, 0.85);
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 40;
+}
+.review-bar button {
+  font: inherit;
+  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.review-bar button.active {
+  background: #d32f2f;
+  border-color: #d32f2f;
+}
+.review-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.review-bar .sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.review-page {
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+}
+.laser-dot {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ff1744 0 40%, rgba(255, 23, 68, 0.35) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 60;
+}

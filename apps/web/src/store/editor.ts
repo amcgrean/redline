@@ -113,6 +113,9 @@ import {
 } from '../stamps';
 import type { StampRow } from '../db';
 import { downloadBytes } from '../download';
+import { renderPagePng } from '../exportPng';
+import { buildMarkupsSummary } from '../summary';
+import { downloadMarkupsCsv, downloadMarkupsXlsx } from '../export';
 import { workerQpdf } from '../compress';
 import { reduceImages } from '../reduceImages';
 import { printDocument } from '../print';
@@ -187,6 +190,9 @@ export interface EditorUiState {
   clipboard: { ids: string[]; page: number };
   /** `?` overlay. */
   showHelp: boolean;
+  /** Review mode (PLAN §3.10): chrome hidden, floating bar. */
+  review: boolean;
+  laser: boolean;
   /** Profile dialog. */
   showProfile: boolean;
   /** The user's profile (author, default units, default style). */
@@ -251,6 +257,8 @@ export const useEditorStore = create<EditorUiState>()(
     spacePan: false,
     clipboard: { ids: [], page: 0 },
     showHelp: false,
+    review: false,
+    laser: false,
     showProfile: false,
     profile: defaultProfile('local'),
     snapEnabled: true,
@@ -1513,6 +1521,78 @@ export const actions = {
       s.snapEnabled = !s.snapEnabled;
       s.status = s.snapEnabled ? 'Snap on' : 'Snap off';
     });
+  },
+
+  toggleReview(show?: boolean): void {
+    set((s) => {
+      s.review = show ?? !s.review;
+      if (!s.review) s.laser = false;
+      if (s.review) {
+        s.tool = 'select';
+        s.selectedId = undefined;
+        s.selectedIds = [];
+        s.status = 'Review mode — Esc to exit';
+      }
+    });
+  },
+
+  toggleLaser(): void {
+    set((s) => {
+      s.laser = !s.laser;
+    });
+  },
+
+  /** Current page as PNG at 150 dpi, markups drawn from their appearance streams. */
+  async exportPng(): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    const pageIndex = useEditorStore.getState().currentPage;
+    set((s) => {
+      s.status = `Rendering page ${pageIndex + 1}…`;
+    });
+    try {
+      const { png, width, height } = await renderPagePng(session.doc, pageIndex, 150);
+      const name = `${session.file.name.replace(/\.pdf$/i, '')}.p${pageIndex + 1}.png`;
+      downloadBytes(png, name, 'image/png');
+      set((s) => {
+        s.status = `Exported page ${pageIndex + 1} as ${width}×${height} PNG`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `PNG export failed: ${(error as Error).message}`;
+      });
+    }
+  },
+
+  /** Markups summary PDF: thumbnails and a table per marked-up page. */
+  async exportSummary(): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    set((s) => {
+      s.status = 'Building markups summary…';
+    });
+    try {
+      const bytes = await buildMarkupsSummary(session.doc, { fileName: session.file.name });
+      const name = `${session.file.name.replace(/\.pdf$/i, '')}.summary.pdf`;
+      downloadBytes(bytes, name, 'application/pdf');
+      set((s) => {
+        s.status = `Exported markups summary (${session.doc.markups.length} markups)`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `Summary export failed: ${(error as Error).message}`;
+      });
+    }
+  },
+
+  exportCsv(): void {
+    const session = getSession();
+    if (session) downloadMarkupsCsv(session.doc, session.file.name);
+  },
+
+  exportXlsx(): void {
+    const session = getSession();
+    if (session) downloadMarkupsXlsx(session.doc, session.file.name);
   },
 
   toggleHelp(show?: boolean): void {

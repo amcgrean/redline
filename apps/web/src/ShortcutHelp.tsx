@@ -44,6 +44,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['PageUp / PageDown', 'Previous / next page'],
       ['Ctrl+F / Ctrl+P', 'Find / Print'],
       ['Ctrl+Shift+1…5', 'Tools / Markups / Pages / Properties / Measure'],
+      ['Ctrl+Shift+F', 'Review mode (Esc exits; arrows turn pages; L laser)'],
       ['?', 'This help'],
     ],
   },
