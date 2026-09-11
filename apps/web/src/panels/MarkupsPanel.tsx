@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import type { Markup } from '@redline/pdf-core';
 import { countGroupOf, formatArea, formatLength } from '@redline/pdf-core';
 import { actions, useEditor } from '../store';
+import { downloadMarkupsCsv } from '../export';
 
 interface Row {
   markup: Markup;
@@ -55,7 +56,7 @@ function valueOf(m: Markup): string {
 }
 
 export function MarkupsPanel() {
-  const { doc, selectedId, version, hasDoc } = useEditor();
+  const { doc, selectedId, version, hasDoc, fileName } = useEditor();
   void version;
 
   const groups = useMemo((): Group[] => {
@@ -101,6 +102,18 @@ export function MarkupsPanel() {
 
   return (
     <div className="markups-panel">
+      <div className="markups-toolbar">
+        <span className="muted small">
+          {doc.markups.length} markups · {groups.length} subjects
+        </span>
+        <button
+          type="button"
+          onClick={() => downloadMarkupsCsv(doc, fileName ?? 'markups')}
+          title="One row per markup plus a subtotal per subject"
+        >
+          Export CSV
+        </button>
+      </div>
       <table className="markups" data-testid="markups-list">
         <thead>
           <tr>
