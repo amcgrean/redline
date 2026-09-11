@@ -162,6 +162,15 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
   if (event.key === 'Home' && ctrl) return actions.goToPage(0);
   if (event.key === 'End' && ctrl) return actions.goToPage(Number.MAX_SAFE_INTEGER);
 
+  if (ctrl && key === 'a') {
+    event.preventDefault();
+    if (hasDoc) actions.selectAllOnPage();
+    return;
+  }
+  if (event.key === 'Escape') {
+    actions.select(undefined);
+    return;
+  }
   if (event.key === 'Delete' || event.key === 'Backspace') {
     event.preventDefault();
     return actions.deleteMarkups();
@@ -193,6 +202,7 @@ export function App() {
     zoom,
     zoomMode,
     selectedId,
+    selectedIds,
     hasDoc,
     pageCount,
     currentPage,
@@ -576,7 +586,13 @@ export function App() {
               : 'not set'}
           </>
         )}
-        {selected && (
+        {selectedIds.length > 1 && (
+          <>
+            {' '}
+            · <strong>{selectedIds.length} selected</strong>
+          </>
+        )}
+        {selected && selectedIds.length <= 1 && (
           <>
             {' '}
             · selected {selected.rawSubtype}

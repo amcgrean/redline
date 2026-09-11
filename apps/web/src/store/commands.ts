@@ -242,6 +242,33 @@ export function geometryCommand(doc: RedlineDocument, id: string, geometry: Geom
   };
 }
 
+/** Move several markups by the same delta (group drag). One undo restores all. */
+export function moveManyCommand(
+  doc: RedlineDocument,
+  ids: string[],
+  dx: number,
+  dy: number,
+): Command {
+  const previous = new Map<string, Date | undefined>();
+  return {
+    label: ids.length === 1 ? 'Move' : `Move ${ids.length} markups`,
+    do() {
+      for (const id of ids) {
+        const m = doc.markups.find((x) => x.id === id);
+        if (!m) continue;
+        if (!previous.has(id)) previous.set(id, m.text?.modified);
+        moveMarkup(doc, id, dx, dy);
+      }
+    },
+    undo() {
+      for (const id of [...ids].reverse()) {
+        if (!doc.markups.some((x) => x.id === id)) continue;
+        moveMarkup(doc, id, -dx, -dy, previous.get(id) ?? new Date());
+      }
+    },
+  };
+}
+
 /** Move a markup. Undo moves it back and restores its previous `/M`. */
 export function moveCommand(doc: RedlineDocument, id: string, dx: number, dy: number): Command {
   let previousModified: Date | undefined;

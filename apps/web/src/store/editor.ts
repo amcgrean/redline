@@ -62,6 +62,7 @@ import {
   deleteCommand,
   geometryCommand,
   moveCommand,
+  moveManyCommand,
   updateCommand,
 } from './commands';
 import type { FindHit } from '../text/textIndex';
@@ -98,7 +99,9 @@ export interface EditorUiState {
   fileName?: string;
   pageCount: number;
   tool: Tool;
+  /** Primary (last clicked) selection; `selectedIds` is the whole set, primary included. */
   selectedId?: string;
+  selectedIds: string[];
   zoom: number;
   zoomMode: ZoomMode;
   layoutMode: LayoutMode;
@@ -139,6 +142,7 @@ const ZOOM_STEP = 1.25;
 export const useEditorStore = create<EditorUiState>()(
   immer(() => ({
     documents: [],
+    selectedIds: [],
     hasDoc: false,
     pageCount: 0,
     tool: 'select',
@@ -239,6 +243,7 @@ export const actions = {
       s.find = { open: false, query: '', hits: [], index: 0 };
       s.autosave = options.recovered ? 'saved' : 'idle';
       s.selectedId = undefined;
+      s.selectedIds = [];
       s.tool = 'select';
       s.currentPage = 0;
       s.version += 1;
@@ -262,6 +267,7 @@ export const actions = {
       s.find = { open: false, query: '', hits: [], index: 0 };
       s.autosave = session.dirty ? 'saved' : 'idle';
       s.selectedId = undefined;
+      s.selectedIds = [];
       s.currentPage = 0;
       s.version += 1;
       s.status = `${session.file.name}: ${s.pageCount} pages, ${session.doc.markups.length} markups`;
@@ -279,6 +285,7 @@ export const actions = {
       syncActive(s, next);
       s.find = { open: false, query: '', hits: [], index: 0 };
       s.selectedId = undefined;
+      s.selectedIds = [];
       s.currentPage = 0;
       s.version += 1;
       s.status = next ? `${next.file.name}` : 'Drop a PDF to begin';
@@ -290,6 +297,7 @@ export const actions = {
     set((s) => {
       s.tool = tool;
       s.selectedId = undefined;
+      s.selectedIds = [];
       // Every activation of the Count tool starts a fresh group.
       s.countGroup = tool === 'count' ? generateNM() : undefined;
       // A chest tool only stays active while its kind is the tool in use.
@@ -332,6 +340,7 @@ export const actions = {
     set((s) => {
       s.tool = tool.kind;
       s.selectedId = undefined;
+      s.selectedIds = [];
       s.countGroup = tool.kind === 'count' ? generateNM() : undefined;
       s.activeToolId = tool.id;
       s.status = `Tool: ${tool.name}`;
@@ -476,14 +485,74 @@ export const actions = {
     });
     history.run(command);
     const total = doc.markups.filter((m) => countGroupOf(m) === group).length;
-    bump({ countGroup: group, selectedId: command.id, status: `Count ${total}` });
+    bump({
+      countGroup: group,
+      selectedId: command.id,
+      selectedIds: [command.id],
+      status: `Count ${total}`,
+    });
     return command.markup;
   },
 
   select(id: string | undefined): void {
     set((s) => {
       s.selectedId = id;
+      s.selectedIds = id ? [id] : [];
     });
+  },
+
+  /** Shift/Ctrl-click: add to or remove from the selection. */
+  toggleSelect(id: string): void {
+    set((s) => {
+      if (s.selectedIds.includes(id)) {
+        s.selectedIds = s.selectedIds.filter((x) => x !== id);
+        s.selectedId = s.selectedIds[s.selectedIds.length - 1];
+      } else {
+        s.selectedIds.push(id);
+        s.selectedId = id;
+      }
+    });
+  },
+
+  /** Marquee result. `additive` keeps the existing selection (Shift held). */
+  selectMany(ids: string[], additive = false): void {
+    set((s) => {
+      const base = additive ? s.selectedIds : [];
+      const merged = [...base, ...ids.filter((id) => !base.includes(id))];
+      s.selectedIds = merged;
+      s.selectedId = merged[merged.length - 1];
+    });
+  },
+
+  /** Ctrl+A: every visible markup on the current page. */
+  selectAllOnPage(): void {
+    const session = getSession();
+    if (!session) return;
+    const page = useEditorStore.getState().currentPage;
+    const ids = session.doc.markups
+      .filter((m) => m.pageIndex === page && !m.flags.hidden)
+      .map((m) => m.id);
+    actions.selectMany(ids);
+    set((s) => {
+      s.status = `${ids.length} selected on page ${page + 1}`;
+    });
+  },
+
+  /**
+   * A drag on `draggedId`: if it belongs to a multi-selection the whole selection moves
+   * together as one undoable command.
+   */
+  moveSelected(draggedId: string, dx: number, dy: number): void {
+    if (dx === 0 && dy === 0) return;
+    const { selectedIds } = useEditorStore.getState();
+    if (selectedIds.length > 1 && selectedIds.includes(draggedId)) {
+      const { doc, history } = requireSession();
+      const command = moveManyCommand(doc, selectedIds, dx, dy);
+      history.run(command);
+      bump({ status: command.label });
+      return;
+    }
+    actions.move(draggedId, dx, dy);
   },
 
   /** A numeric zoom always switches to custom mode. */
@@ -690,7 +759,11 @@ export const actions = {
       ...measurementOptions('Length'),
     });
     history.run(command);
-    bump({ selectedId: command.id, status: `Length ${command.markup?.text?.contents ?? ''}` });
+    bump({
+      selectedId: command.id,
+      selectedIds: [command.id],
+      status: `Length ${command.markup?.text?.contents ?? ''}`,
+    });
     return command.markup;
   },
 
@@ -700,7 +773,11 @@ export const actions = {
       ...measurementOptions('Area'),
     });
     history.run(command);
-    bump({ selectedId: command.id, status: `Area ${command.markup?.text?.contents ?? ''}` });
+    bump({
+      selectedId: command.id,
+      selectedIds: [command.id],
+      status: `Area ${command.markup?.text?.contents ?? ''}`,
+    });
     return command.markup;
   },
 
@@ -714,6 +791,7 @@ export const actions = {
     history.run(command);
     bump({
       selectedId: command.id,
+      selectedIds: [command.id],
       status: `${command.label} ${command.markup?.text?.contents ?? ''}`,
     });
     return command.markup;
@@ -738,8 +816,7 @@ export const actions = {
   updateProperties(patch: MarkupPatch, ids?: string[], label?: string): void {
     const session = getSession();
     if (!session) return;
-    const selected = useEditorStore.getState().selectedId;
-    const targets = ids ?? (selected ? [selected] : []);
+    const targets = ids ?? useEditorStore.getState().selectedIds;
     if (targets.length === 0) return;
     const command = updateCommand(session.doc, targets, patch, label);
     session.history.run(command);
@@ -750,8 +827,7 @@ export const actions = {
   deleteMarkups(ids?: string[]): void {
     const session = getSession();
     if (!session) return;
-    const targets =
-      ids ?? (useEditorStore.getState().selectedId ? [useEditorStore.getState().selectedId!] : []);
+    const targets = ids ?? useEditorStore.getState().selectedIds;
     const deletable = targets.filter((id) => {
       const m = session.doc.markups.find((x) => x.id === id);
       return m && !m.flags.locked;
@@ -759,7 +835,7 @@ export const actions = {
     if (deletable.length === 0) return;
     const command = deleteCommand(session.doc, deletable);
     session.history.run(command);
-    bump({ selectedId: undefined, status: command.label });
+    bump({ selectedId: undefined, selectedIds: [], status: command.label });
   },
 
   undo(): void {

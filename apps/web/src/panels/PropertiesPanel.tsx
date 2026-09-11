@@ -11,7 +11,7 @@ import { actions, useEditor } from '../store';
 import { fromHex, toHex } from '../color';
 
 export function PropertiesPanel() {
-  const { doc, selectedId, version } = useEditor();
+  const { doc, selectedId, selectedIds, version } = useEditor();
   void version;
   const markup = doc?.markups.find((m) => m.id === selectedId);
   const [subject, setSubject] = useState('');
@@ -29,7 +29,13 @@ export function PropertiesPanel() {
   const groupIds = group
     ? doc.markups.filter((m) => countGroupOf(m) === group).map((m) => m.id)
     : undefined;
-  const targets = () => (group && applyToGroup && groupIds ? groupIds : [markup.id]);
+  // A multi-selection is edited as a whole; otherwise a count group, otherwise the one markup.
+  const targets = () =>
+    selectedIds.length > 1
+      ? selectedIds
+      : group && applyToGroup && groupIds
+        ? groupIds
+        : [markup.id];
 
   const commitSubject = () => {
     const next = subject.trim();
@@ -52,6 +58,11 @@ export function PropertiesPanel() {
 
   return (
     <div className="properties-panel">
+      {selectedIds.length > 1 && (
+        <div className="muted small">
+          {selectedIds.length} selected — edits and Delete apply to all of them.
+        </div>
+      )}
       <label className="prop">
         Subject
         <input
@@ -186,12 +197,14 @@ export function PropertiesPanel() {
         type="button"
         className="danger"
         disabled={markup.flags.locked}
-        onClick={() => actions.deleteMarkups(group && applyToGroup ? groupIds : [markup.id])}
+        onClick={() => actions.deleteMarkups(targets())}
         title="Delete (Del)"
       >
-        {group && applyToGroup && groupIds && groupIds.length > 1
-          ? `Delete all ${groupIds.length} in this count`
-          : 'Delete markup'}
+        {selectedIds.length > 1
+          ? `Delete ${selectedIds.length} markups`
+          : group && applyToGroup && groupIds && groupIds.length > 1
+            ? `Delete all ${groupIds.length} in this count`
+            : 'Delete markup'}
       </button>
     </div>
   );

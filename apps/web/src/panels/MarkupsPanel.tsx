@@ -56,7 +56,7 @@ function valueOf(m: Markup): string {
 }
 
 export function MarkupsPanel() {
-  const { doc, selectedId, version, hasDoc, fileName } = useEditor();
+  const { doc, selectedIds, version, hasDoc, fileName } = useEditor();
   void version;
 
   const groups = useMemo((): Group[] => {
@@ -137,10 +137,11 @@ export function MarkupsPanel() {
             {g.rows.map((r) => (
               <tr
                 key={r.markup.id}
-                className={r.markup.id === selectedId ? 'selected' : ''}
-                onClick={() => {
+                className={selectedIds.includes(r.markup.id) ? 'selected' : ''}
+                onClick={(e) => {
                   actions.goToPage(r.markup.pageIndex);
-                  actions.select(r.markup.id);
+                  if (e.shiftKey || e.ctrlKey) actions.toggleSelect(r.markup.id);
+                  else actions.select(r.markup.id);
                 }}
                 title={`/NM ${r.markup.id}`}
               >

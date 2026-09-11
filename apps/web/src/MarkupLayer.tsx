@@ -19,7 +19,7 @@ import {
   worldUnitsPerPoint,
 } from '@redline/pdf-core';
 import type { PageViewport } from './pdfjs';
-import { actions, useEditor } from './store';
+import { actions, useEditor, useEditorStore } from './store';
 import { renderApBitmap, type ApBitmap } from './apBitmap';
 import { CalibrateDialog } from './CalibrateDialog';
 
@@ -47,7 +47,7 @@ const HANDLE = 8;
 const DRAFT_COLOR = '#d32f2f';
 
 export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
-  const { doc, tool, selectedId, version, spacePan } = useEditor();
+  const { doc, tool, selectedIds, version, spacePan } = useEditor();
   const panning = tool === 'pan' || spacePan;
   const [draft, setDraftState] = useState<Point[]>([]);
   // Mirror of `draft` for handlers that fire in the same tick as a state update (Konva
@@ -58,6 +58,10 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     setDraftState(points);
   };
   const [hover, setHover] = useState<Point | undefined>();
+  /** Rubber-band selection in page pixels (layer coordinates). */
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number }>();
+  const marqueeRef = useRef<typeof marquee>(undefined);
+  const justMarqueed = useRef(false);
   const [calibrating, setCalibrating] = useState<[Point, Point] | undefined>();
   void version; // re-render on every mutation
 
@@ -120,6 +124,11 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     const p = pointerPdf(event);
     if (!p) return;
     if (tool === 'select' || tool === 'text') {
+      // The click that ends a marquee drag must not clear what the marquee selected.
+      if (justMarqueed.current) {
+        justMarqueed.current = false;
+        return;
+      }
       if (event.target === event.target.getStage()) actions.select(undefined);
       return;
     }
@@ -189,7 +198,57 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     finishPoly(trimmed);
   };
 
+  /** Page-pixel position of the pointer (layer coordinates). */
+  const pointerPx = (event: KonvaEventObject<MouseEvent>): [number, number] | undefined => {
+    const pos = event.target.getStage()?.getPointerPosition();
+    return pos ? [pos.x + visible.left, pos.y + visible.top] : undefined;
+  };
+
+  const onMouseDown = (event: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select' || event.evt.button !== 0) return;
+    if (event.target !== event.target.getStage()) return;
+    const px = pointerPx(event);
+    if (!px) return;
+    const m = { x0: px[0], y0: px[1], x1: px[0], y1: px[1] };
+    marqueeRef.current = m;
+    setMarquee(m);
+  };
+
+  const onMouseUp = (event: KonvaEventObject<MouseEvent>) => {
+    const m = marqueeRef.current;
+    if (!m) return;
+    marqueeRef.current = undefined;
+    setMarquee(undefined);
+    const left = Math.min(m.x0, m.x1);
+    const top = Math.min(m.y0, m.y1);
+    const right = Math.max(m.x0, m.x1);
+    const bottom = Math.max(m.y0, m.y1);
+    if (right - left < 4 && bottom - top < 4) return; // a plain click
+    const hits = markups
+      .filter((mk) => {
+        const box = rectPx(mk.render === 'ap-bitmap' ? mk.rect : geometryBounds(mk), toPx);
+        return (
+          box.left < right &&
+          box.left + box.width > left &&
+          box.top < bottom &&
+          box.top + box.height > top
+        );
+      })
+      .map((mk) => mk.id);
+    actions.selectMany(hits, event.evt.shiftKey);
+    justMarqueed.current = true;
+  };
+
   const onMouseMove = (event: KonvaEventObject<MouseEvent>) => {
+    if (marqueeRef.current) {
+      const px = pointerPx(event);
+      if (px) {
+        const m = { ...marqueeRef.current, x1: px[0], y1: px[1] };
+        marqueeRef.current = m;
+        setMarquee(m);
+      }
+      return;
+    }
     if (tool === 'select' || tool === 'text') return;
     setHover(pointerPdf(event));
   };
@@ -243,6 +302,8 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
           height={Math.max(1, visible.height)}
           onClick={onClick}
           onDblClick={onDblClick}
+          onMouseDown={onMouseDown}
+          onMouseUp={onMouseUp}
           onMouseMove={onMouseMove}
         >
           <Layer x={-visible.left} y={-visible.top}>
@@ -250,13 +311,27 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
               <MarkupShape
                 key={m.id}
                 markup={m}
-                selected={m.id === selectedId}
+                selected={selectedIds.includes(m.id)}
                 draggable={tool === 'select'}
                 toPx={toPx}
                 toPdf={toPdf}
                 zoom={viewport.scale}
               />
             ))}
+            {marquee && (
+              <Rect
+                x={Math.min(marquee.x0, marquee.x1)}
+                y={Math.min(marquee.y0, marquee.y1)}
+                width={Math.abs(marquee.x1 - marquee.x0)}
+                height={Math.abs(marquee.y1 - marquee.y0)}
+                stroke={SELECT_COLOR}
+                strokeWidth={1}
+                dash={[4, 3]}
+                fill="rgba(2,136,209,0.08)"
+                listening={false}
+                name="marquee"
+              />
+            )}
             {draftPoints.length > 0 && (
               <Line
                 points={pointsPx(draftPoints)}
@@ -351,12 +426,14 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
     // Convert the pixel delta to a user-space delta through the page transform.
     const origin = toPdf(0, 0);
     const moved = toPdf(dx, dy);
-    actions.move(markup.id, moved.x - origin.x, moved.y - origin.y);
+    actions.moveSelected(markup.id, moved.x - origin.x, moved.y - origin.y);
   };
 
   const onSelect = (event: KonvaEventObject<MouseEvent>) => {
     event.cancelBubble = true;
-    actions.select(markup.id);
+    const { selectedIds } = useEditorStore.getState();
+    if (event.evt.shiftKey || event.evt.ctrlKey) actions.toggleSelect(markup.id);
+    else if (!selectedIds.includes(markup.id)) actions.select(markup.id);
   };
 
   const caption =
