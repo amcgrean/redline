@@ -21,13 +21,17 @@ import type {
   Rect,
   ShapeGeometry,
   ShapeStyle,
+  StampCorner,
   TextStyle,
   UnitFormat,
 } from '@redline/pdf-core';
 import {
+  BUILTIN_STAMPS,
   countGroupOf,
+  embedStampArtwork,
   generateNM,
   openDocument,
+  rectAt,
   saveFull,
   saveIncremental,
 } from '@redline/pdf-core';
@@ -80,6 +84,8 @@ import {
   addTextBoxCommand,
   addCalloutCommand,
   addNoteCommand,
+  addStampCommand,
+  stampPagesCommand,
   setTextCommand,
   duplicateCommand,
   lockCommand,
@@ -91,6 +97,14 @@ import {
   updateCommand,
 } from './commands';
 import type { FindHit } from '../text/textIndex';
+import {
+  importStampFile,
+  listUserStamps,
+  removeUserStamp,
+  resolveStamp,
+  type ActiveStamp,
+} from '../stamps';
+import type { StampRow } from '../db';
 import { printDocument } from '../print';
 
 export type Tool =
@@ -114,7 +128,8 @@ export type Tool =
   | 'callout'
   | 'note'
   | 'cloud'
-  | 'highlighter';
+  | 'highlighter'
+  | 'stamp';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -170,6 +185,13 @@ export interface EditorUiState {
   snapEnabled: boolean;
   /** Selected page indices in the Pages panel. */
   pageSelection: number[];
+  /** Stamp library state. */
+  activeStamp: ActiveStamp;
+  userStamps: StampRow[];
+  stampText: string;
+  stampCorner: StampCorner;
+  /** Width in points a placed stamp gets. */
+  stampWidth: number;
   /** A page operation (full rewrite + reload) is in flight. */
   pageBusy: boolean;
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
@@ -212,6 +234,11 @@ export const useEditorStore = create<EditorUiState>()(
     profile: defaultProfile('local'),
     snapEnabled: true,
     pageSelection: [],
+    activeStamp: { kind: 'builtin', id: 'approved' },
+    userStamps: [],
+    stampText: '',
+    stampCorner: 'top-right',
+    stampWidth: 216,
     pageBusy: false,
     currentPage: 0,
     version: 0,
@@ -364,6 +391,126 @@ export const actions = {
       const active = s.chest?.tools.find((t) => t.id === s.activeToolId);
       if (active && active.kind !== tool) s.activeToolId = undefined;
     });
+  },
+
+  // ---- stamps ----
+
+  async loadStamps(): Promise<void> {
+    const rows = await listUserStamps();
+    set((s) => {
+      s.userStamps = rows;
+    });
+  },
+
+  setActiveStamp(stamp: ActiveStamp): void {
+    const title =
+      stamp.kind === 'builtin'
+        ? BUILTIN_STAMPS.find((b) => b.id === stamp.id)?.title
+        : useEditorStore.getState().userStamps.find((u) => u.id === stamp.id)?.name;
+    set((s) => {
+      s.activeStamp = stamp;
+      s.tool = 'stamp';
+      s.selectedId = undefined;
+      s.selectedIds = [];
+      s.status = `Stamp: ${title ?? stamp.id} — click the page to place it`;
+    });
+  },
+
+  setStampText(text: string): void {
+    set((s) => {
+      s.stampText = text;
+    });
+  },
+
+  setStampCorner(corner: StampCorner): void {
+    set((s) => {
+      s.stampCorner = corner;
+    });
+  },
+
+  async importStamp(file: File): Promise<void> {
+    try {
+      const row = await importStampFile(file);
+      set((s) => {
+        s.userStamps = [...s.userStamps, row];
+        s.activeStamp = { kind: 'user', id: row.id };
+        s.tool = s.hasDoc ? 'stamp' : s.tool;
+        s.status = `Added stamp "${row.name}"`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = (error as Error).message;
+      });
+    }
+  },
+
+  async removeUserStamp(id: string): Promise<void> {
+    await removeUserStamp(id);
+    set((s) => {
+      s.userStamps = s.userStamps.filter((u) => u.id !== id);
+      if (s.activeStamp.kind === 'user' && s.activeStamp.id === id) {
+        s.activeStamp = { kind: 'builtin', id: 'approved' };
+      }
+    });
+  },
+
+  /** Place the active stamp with its top-left at `at`. */
+  async addStampAt(pageIndex: number, at: Point): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    const state = useEditorStore.getState();
+    try {
+      const resolved = await resolveStamp(state.activeStamp, state.userStamps, {
+        user: state.author,
+        customText: state.stampText,
+        file: session.file.name,
+      });
+      const source = await embedStampArtwork(session.doc, resolved.artwork);
+      const command = addStampCommand(
+        session.doc,
+        pageIndex,
+        rectAt(source, at, state.stampWidth),
+        source,
+        { name: resolved.name, contents: resolved.contents, author: state.author },
+      );
+      session.history.run(command);
+      bump({ selectedId: command.id, selectedIds: [command.id], status: 'Stamp' });
+    } catch (error) {
+      set((s) => {
+        s.status = `Stamp failed: ${(error as Error).message}`;
+      });
+    }
+  },
+
+  /** Place the active stamp on every page at the chosen corner. */
+  async stampAllPages(): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    const state = useEditorStore.getState();
+    try {
+      const resolved = await resolveStamp(state.activeStamp, state.userStamps, {
+        user: state.author,
+        customText: state.stampText,
+        file: session.file.name,
+      });
+      const source = await embedStampArtwork(session.doc, resolved.artwork);
+      const command = stampPagesCommand(
+        session.doc,
+        source,
+        { corner: state.stampCorner, width: state.stampWidth, margin: 36 },
+        { name: resolved.name, contents: resolved.contents, author: state.author },
+      );
+      session.history.run(command);
+      bump({
+        selectedId: command.created[0],
+        selectedIds: [...command.created],
+        status: command.label,
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `Stamp failed: ${(error as Error).message}`;
+      });
+    }
   },
 
   // ---- pages ----

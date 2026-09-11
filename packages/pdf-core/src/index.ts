@@ -110,3 +110,22 @@ export {
 } from './annots/ap/measurement.js';
 export { buildFormXObject } from './annots/ap/form.js';
 export { pdfDate, parsePdfDate } from './annots/dict.js';
+export {
+  embedStampArtwork,
+  addStamp,
+  stampPages,
+  stampMatrix,
+  placementRect,
+  rectAt,
+} from './stamps/stamp.js';
+export type {
+  StampArtwork,
+  StampSource,
+  StampOptions,
+  StampPlacement,
+  StampCorner,
+} from './stamps/stamp.js';
+export { bakeFields, formatStampDate, formatStampTime } from './stamps/fields.js';
+export type { FieldContext } from './stamps/fields.js';
+export { BUILTIN_STAMPS, builtinStamp } from './stamps/library.js';
+export type { BuiltinStamp } from './stamps/library.js';

@@ -95,6 +95,11 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
     label: 'Callout (K)',
     hint: 'Click what to point at, then drag the box and type.',
   },
+  {
+    id: 'stamp',
+    label: 'Stamp (S)',
+    hint: 'Click where the top-left of the stamp goes. Pick a stamp in the Tools panel.',
+  },
   { id: 'note', label: 'Note (N)', hint: 'Click to place a sticky note, type, press Enter.' },
 ];
 
@@ -246,6 +251,7 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     t: 'textbox',
     k: 'callout',
     n: 'note',
+    s: 'stamp',
   };
   const shifted: Record<string, Tool> = {
     m: 'polylength',
@@ -320,6 +326,7 @@ export function App() {
   // Profile then tool chest live in IndexedDB; load (or seed) them once.
   useEffect(() => {
     void actions.loadProfile().then(() => actions.loadToolChest());
+    void actions.loadStamps();
   }, []);
 
   // Paste a PDF from the clipboard (e.g. copied in Explorer).

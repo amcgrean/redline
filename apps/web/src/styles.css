@@ -986,3 +986,58 @@ form[aria-label='Profile'] .row .spacer {
 .thumb.drop-after {
   box-shadow: 0 3px 0 0 #0288d1;
 }
+
+/* Stamp library in the Tools panel. */
+.stamps-section {
+  border-top: 1px solid #ddd;
+  margin-top: 8px;
+  padding-top: 4px;
+}
+.stamp-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px;
+}
+.stamp-chip {
+  font: inherit;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+}
+.stamp-chip.active {
+  background: #fff3e0;
+  box-shadow: 0 0 0 2px #0288d1;
+}
+.stamp-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.stamp-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.stamp-remove {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #999;
+}
+.stamp-text {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 8px 4px;
+  font-size: 12px;
+}
+.stamp-text input {
+  flex: 1;
+  font: inherit;
+  padding: 2px 6px;
+}

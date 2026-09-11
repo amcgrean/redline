@@ -40,6 +40,14 @@ export interface ProfileRow {
   updatedAt: number;
 }
 
+export interface StampRow {
+  id: string;
+  name: string;
+  kind: 'png' | 'jpg' | 'pdf';
+  blob: Blob;
+  createdAt: number;
+}
+
 export interface RecentEntry {
   id?: number;
   name: string;
@@ -58,6 +66,7 @@ export const db = new Dexie('redline') as Dexie & {
   autosaveBlobs: EntityTable<AutosaveBlob, 'key'>;
   toolchests: EntityTable<ToolChestRow, 'id'>;
   profiles: EntityTable<ProfileRow, 'id'>;
+  stamps: EntityTable<StampRow, 'id'>;
 };
 
 db.version(1).stores({
@@ -80,6 +89,14 @@ db.version(4).stores({
   autosaveBlobs: 'key',
   toolchests: 'id, updatedAt',
   profiles: 'id, updatedAt',
+});
+db.version(5).stores({
+  recents: '++id, openedAt, name',
+  autosaves: 'key, savedAt, name',
+  autosaveBlobs: 'key',
+  toolchests: 'id, updatedAt',
+  profiles: 'id, updatedAt',
+  stamps: 'id, createdAt',
 });
 
 /** Record an open. Same-named entries collapse into one so the list stays useful. */

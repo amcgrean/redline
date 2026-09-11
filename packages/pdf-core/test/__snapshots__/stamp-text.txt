@@ -1,0 +1,70 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 100 1490.054515 400 1600 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /ProcSet [ /PDF ]
+        /XObject <<
+          /Fm0 stream <<
+            /BBox [ 0 0 174.632 64 ]
+            /Filter /FlateDecode
+            /FormType 1
+            /Matrix [ 1 0 0 1 0 0 ]
+            /Resources <<
+              /Font <<
+                /Helv <<
+                  /BaseFont /Helvetica
+                  /Encoding /WinAnsiEncoding
+                  /Subtype /Type1
+                  /Type /Font
+                >>
+              >>
+              /ProcSet [ /PDF /Text ]
+            >>
+            /Subtype /Form
+            /Type /XObject
+          >>
+            | q
+            | 0.13 0.55 0.13 RG
+            | 0.13 0.55 0.13 rg
+            | 2 w
+            | 1 1 172.632 62 re
+            | S
+            | BT
+            | /Helv 28 Tf
+            | 10.498 32.16 Td
+            | (APPROVED) Tj
+            | ET
+            | BT
+            | /Helv 12 Tf
+            | 10 12.64 Td
+            | (Aaron McGrane \267 09/08/2026) Tj
+            | ET
+            | Q
+        >>
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | 1.717898 0 0 1.717898 100 1490.054515 cm
+      | /Fm0 Do
+      | Q
+  >>
+  /CA 1
+  /Contents (APPROVED Aaron McGrane · 09/08/2026)
+  /CreationDate (D:20260908140500-05'00')
+  /F 4
+  /M (D:20260908140500-05'00')
+  /NM (STAMPAAAAAAAAAAA)
+  /Name /RedlineApproved
+  /P ref(3)
+  /Rect [ 100 1490.054515 400 1600 ]
+  /Subj (Stamp)
+  /Subtype /Stamp
+  /T (Aaron McGrane)
+  /Type /Annot
+>>

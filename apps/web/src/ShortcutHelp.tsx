@@ -15,6 +15,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['G / Shift+G', 'Polygon / Cloud'],
       ['P / Shift+H', 'Pen / Highlighter'],
       ['T / K / N', 'Text box / Callout / Note'],
+      ['S', 'Stamp (pick one in the Tools panel)'],
       ['1–9', 'Tool chest quick slots'],
     ],
   },

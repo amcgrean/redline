@@ -20,6 +20,9 @@ import type {
   RedlineDocument,
   Scale,
   UnitFormat,
+  StampSource,
+  StampOptions,
+  StampPlacement,
 } from '@redline/pdf-core';
 import {
   addAreaMeasurement,
@@ -33,6 +36,8 @@ import {
   setMarkupText,
   duplicateMarkup,
   setMarkupLocked,
+  addStamp,
+  stampPages,
   clearPageScale,
   deleteMarkup,
   moveMarkup,
@@ -300,6 +305,43 @@ export function setTextCommand(doc: RedlineDocument, id: string, text: string): 
       if (previous !== undefined) setMarkupText(doc, id, previous, previousModified ?? new Date());
     },
   };
+}
+
+export function addStampCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  rect: Rect,
+  source: StampSource,
+  options: StampOptions,
+): AddCommand {
+  return addCommand(
+    'Stamp',
+    (nm) => addStamp(doc, pageIndex, rect, source, nm ? { ...options, nm } : options),
+    doc,
+  );
+}
+
+/** Stamp every page; undo removes them all; redo re-creates them under the same /NMs. */
+export function stampPagesCommand(
+  doc: RedlineDocument,
+  source: StampSource,
+  placement: StampPlacement,
+  options: Omit<StampOptions, 'nm'>,
+): Command & { created: string[] } {
+  let nms: string[] | undefined;
+  const command = {
+    label: `Stamp ${doc.pageSizes.length} pages`,
+    created: [] as string[],
+    do() {
+      const marks = stampPages(doc, source, placement, nms ? { ...options, nms } : options);
+      nms = marks.map((m) => m.id);
+      command.created = [...nms];
+    },
+    undo() {
+      for (const nm of [...command.created].reverse()) deleteMarkup(doc, nm);
+    },
+  };
+  return command;
 }
 
 /**

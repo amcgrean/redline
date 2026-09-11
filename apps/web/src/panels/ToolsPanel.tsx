@@ -7,6 +7,7 @@
 import { useRef, useState } from 'react';
 import type { Tool } from '@redline/toolchest';
 import { actions, useEditor, useEditorStore } from '../store';
+import { StampsSection } from './StampsSection';
 
 const KIND_LABEL: Record<Tool['kind'], string> = {
   length: 'Length',
@@ -185,6 +186,7 @@ export function ToolsPanel() {
         />
       </div>
       <div className="muted small">Double-click a tool to rename it or change its subject.</div>
+      <StampsSection />
     </div>
   );
 }

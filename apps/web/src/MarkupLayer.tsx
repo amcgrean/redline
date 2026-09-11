@@ -69,7 +69,9 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const marqueeRef = useRef<typeof marquee>(undefined);
   const justMarqueed = useRef(false);
   const [calibrating, setCalibrating] = useState<[Point, Point] | undefined>();
-  const [menu, setMenu] = useState<{ x: number; y: number; markupId?: string } | undefined>();
+  const [menu, setMenu] = useState<
+    { x: number; y: number; markupId?: string; at?: Point } | undefined
+  >();
   /** The snap point the pointer is currently on, for the indicator. */
   const [snapHit, setSnapHit] = useState<Point | undefined>();
   const snapHitRef = useRef<Point | undefined>(undefined);
@@ -150,6 +152,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     tool !== 'pan' &&
     tool !== 'count' &&
     tool !== 'note' &&
+    tool !== 'stamp' &&
     tool !== 'pen' &&
     tool !== 'highlighter';
 
@@ -273,6 +276,10 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     }
     if (tool === 'note') {
       setEditor({ kind: 'note', at: p });
+      return;
+    }
+    if (tool === 'stamp') {
+      void actions.addStampAt(pageIndex, p);
       return;
     }
     if (tool === 'line' || tool === 'arrow') {
@@ -544,7 +551,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
               : undefined;
             const { selectedIds } = useEditorStore.getState();
             if (hit && !selectedIds.includes(hit.id)) actions.select(hit.id);
-            setMenu({ x: event.evt.clientX, y: event.evt.clientY, markupId: hit?.id });
+            setMenu({ x: event.evt.clientX, y: event.evt.clientY, markupId: hit?.id, at: p });
           }}
         >
           <Layer x={-visible.left} y={-visible.top}>
@@ -652,7 +659,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
         <ContextMenu
           x={menu.x}
           y={menu.y}
-          items={menuItems(menu.markupId, pageIndex, (m) => {
+          items={menuItems(menu.markupId, pageIndex, menu.at, (m) => {
             const rect: PdfRect =
               m.rawSubtype === 'Text'
                 ? [m.rect[0], m.rect[1] - 40, m.rect[0] + 200, m.rect[1]]
@@ -934,6 +941,7 @@ function MarkupShape({
 function menuItems(
   markupId: string | undefined,
   pageIndex: number,
+  at: Point | undefined,
   editText: (m: Markup) => void,
 ): MenuItem[] {
   const state = useEditorStore.getState();
@@ -955,6 +963,15 @@ function menuItems(
       { separator: true, label: '' },
       { label: 'Calibrate scale…', shortcut: 'X', onSelect: () => actions.setTool('calibrate') },
       { label: 'Measure panel', onSelect: () => actions.setPanel('measure') },
+      { separator: true, label: '' },
+      {
+        label: 'Stamp here',
+        shortcut: 'S',
+        disabled: !at,
+        onSelect: () => {
+          if (at) void actions.addStampAt(pageIndex, at);
+        },
+      },
     ];
   }
   const ids = state.selectedIds.includes(markup.id) ? state.selectedIds : [markup.id];

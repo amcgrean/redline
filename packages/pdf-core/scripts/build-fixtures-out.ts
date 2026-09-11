@@ -20,6 +20,8 @@ import { PDFDocument, rgb } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';
 import { deletePages, movePages, rotatePages, saveFull } from '../src/pages/ops.js';
+import { addStamp, embedStampArtwork, rectAt, stampPages } from '../src/stamps/stamp.js';
+import { bakeFields } from '../src/stamps/fields.js';
 import { setPageScale } from '../src/measure/viewport.js';
 import {
   addAreaMeasurement,
@@ -209,9 +211,73 @@ async function pages04(): Promise<void> {
   }
 }
 
+/**
+ * 5. Stamps on the Revu fixture: a built-in text stamp on page 1, a vector PDF stamp on
+ *    page 1, and RECEIVED on every page top-right. Interop checklist row 9.
+ */
+async function stamps05(): Promise<void> {
+  const revu = readdirSync(FIXTURES).find((f) => /bluebeam/i.test(f) && f.endsWith('.pdf'));
+  if (!revu) {
+    console.log('skip stamps-0.5: no Revu fixture');
+    return;
+  }
+  const doc = await openDocument(new Uint8Array(readFileSync(join(FIXTURES, revu))));
+  const now = new Date();
+  const approved = await embedStampArtwork(doc, {
+    kind: 'text',
+    lines: ['APPROVED', bakeFields('{user} · {date}', { now, user: 'Aaron McGrane' })],
+    color: { r: 0.13, g: 0.55, b: 0.13 },
+  });
+  addStamp(doc, 0, rectAt(approved, { x: 120, y: 1600 }, 260), approved, {
+    name: 'RedlineApproved',
+    contents: `APPROVED Aaron McGrane · ${bakeFields('{date}', { now, user: '' })}`,
+    author: 'Aaron McGrane',
+    now,
+  });
+  const art = await PDFDocument.create({ updateMetadata: false });
+  const page = art.addPage([300, 120]);
+  page.drawEllipse({
+    x: 150,
+    y: 60,
+    xScale: 140,
+    yScale: 50,
+    borderColor: rgb(0.8, 0.1, 0.1),
+    borderWidth: 4,
+  });
+  page.drawText('VECTOR STAMP', { x: 60, y: 50, size: 22, color: rgb(0.8, 0.1, 0.1) });
+  const vector = await embedStampArtwork(doc, { kind: 'pdf', bytes: await art.save() });
+  addStamp(doc, 0, rectAt(vector, { x: 420, y: 1600 }, 300), vector, {
+    name: 'RedlineVector',
+    contents: 'VECTOR STAMP',
+    author: 'Aaron McGrane',
+    now,
+    rotation: 90,
+    opacity: 0.6,
+  });
+  const received = await embedStampArtwork(doc, {
+    kind: 'text',
+    lines: ['RECEIVED', bakeFields('{date} {time}', { now, user: '' })],
+    color: { r: 0.1, g: 0.35, b: 0.75 },
+  });
+  stampPages(
+    doc,
+    received,
+    { corner: 'top-right', width: 216, margin: 36 },
+    {
+      name: 'RedlineReceived',
+      contents: `RECEIVED ${bakeFields('{date} {time}', { now, user: '' })}`,
+      author: 'Aaron McGrane',
+      now,
+    },
+  );
+  writeFileSync(join(OUT, 'stamps-0.5-revu.pdf'), (await saveIncremental(doc)).bytes);
+  console.log('wrote stamps-0.5-revu.pdf');
+}
+
 if (!existsSync(FIXTURES)) throw new Error(`fixtures directory missing: ${FIXTURES}`);
 mkdirSync(OUT, { recursive: true });
 await spike01();
 await spike02();
 await pages04();
+await stamps05();
 if (!process.argv.includes('--spikes-only')) await corpusMoved();

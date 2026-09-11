@@ -59,6 +59,8 @@ export interface FormXObjectOptions {
   withFont?: boolean;
   /** When set, adds an `/ExtGState` named `ALPHA_GS` with these alphas (and blend mode). */
   alpha?: { stroke: number; fill: number; blend?: 'Multiply' };
+  /** Form or image XObjects the content draws with `/Name Do` (stamps). */
+  xobjects?: Record<string, PDFRef>;
 }
 
 /**
@@ -87,6 +89,14 @@ export function buildFormXObject(context: PDFContext, options: FormXObjectOption
       ),
     );
     resources.set(PDFName.of('ExtGState'), states);
+  }
+
+  if (options.xobjects) {
+    const xobjects = context.obj({}) as PDFDict;
+    for (const [name, ref] of Object.entries(options.xobjects)) {
+      xobjects.set(PDFName.of(name), ref);
+    }
+    resources.set(PDFName.of('XObject'), xobjects);
   }
 
   const identityMatrix = numArray(context, [1, 0, 0, 1, 0, 0]);

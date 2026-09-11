@@ -13,6 +13,7 @@ Open every file in `fixtures/out/` in **Bluebeam Revu 21**, **Acrobat**, **Chrom
 | 7   | Acrobat "Use scale and units from document" picks up the scale                        | —    |         | —      | —    |
 | 8   | Measurements are editable in Revu (move a vertex; length updates)                     |      | —       | —      | —    |
 | 9   | Stamps appear as Stamp markups (Revu: editable color/opacity/rotation)                |      |         |        |      |
+| 9a  | `stamps-0.5-revu.pdf`: APPROVED text stamp, rotated 60% vector stamp, RECEIVED on every page; all listed as Stamp in Revu's Markups List and movable |      |         |        |      |
 | 10  | Text boxes, callouts, and notes show correct text, font size, alignment               |      |         |        |      |
 | 11  | Page reorder/rotate/delete/merge results are correct and bookmarks survived           |      |         |        |      |
 | 11a | `pages-0.4-revu-rotated-reordered.pdf`: page 1 rotated 90°, last page moved first; Revu Markups List values unchanged, custom columns/spaces intact |      |         |        |      |
