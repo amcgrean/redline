@@ -9,7 +9,7 @@ import { MeasurePanel } from './MeasurePanel';
 import { ToolsPanel } from './ToolsPanel';
 import { MarkupsPanel } from './MarkupsPanel';
 import { PropertiesPanel } from './PropertiesPanel';
-import { Thumbnails } from '../Thumbnails';
+import { PagesPanel } from './PagesPanel';
 
 export const PANEL_TABS: { id: PanelTab; label: string; key: string }[] = [
   { id: 'tools', label: 'Tools', key: 'Ctrl+Shift+1' },
@@ -54,7 +54,7 @@ export function Panel({ pdfjs }: { pdfjs: PdfjsDocument }) {
           {tab === 'tools' && <ToolsPanel />}
           {tab === 'measure' && <MeasurePanel />}
           {tab === 'markups' && <MarkupsPanel />}
-          {tab === 'pages' && <Thumbnails pdfjs={pdfjs} />}
+          {tab === 'pages' && <PagesPanel pdfjs={pdfjs} />}
           {tab === 'properties' && <PropertiesPanel />}
         </div>
       )}

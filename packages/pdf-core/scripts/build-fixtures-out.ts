@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { PDFDocument, rgb } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';
+import { deletePages, movePages, rotatePages, saveFull } from '../src/pages/ops.js';
 import { setPageScale } from '../src/measure/viewport.js';
 import {
   addAreaMeasurement,
@@ -183,8 +184,34 @@ async function corpusMoved(): Promise<void> {
   }
 }
 
+/**
+ * 4. Page operations on the Revu fixture (ADR 0004): a full rewrite after rotate + reorder,
+ *    and after a delete. Interop checklist rows 11a/11b.
+ */
+async function pages04(): Promise<void> {
+  const revu = readdirSync(FIXTURES).find((f) => /bluebeam/i.test(f) && f.endsWith('.pdf'));
+  if (!revu) {
+    console.log('skip pages-0.4: no Revu fixture');
+    return;
+  }
+  const bytes = new Uint8Array(readFileSync(join(FIXTURES, revu)));
+  let doc = await openDocument(bytes);
+  const count = doc.pdfDoc.getPageCount();
+  rotatePages(doc, [0], 90);
+  if (count > 1) movePages(doc, [count - 1], 0);
+  writeFileSync(join(OUT, 'pages-0.4-revu-rotated-reordered.pdf'), await saveFull(doc));
+  console.log(`wrote pages-0.4-revu-rotated-reordered.pdf (${count} pages)`);
+  if (count > 1) {
+    doc = await openDocument(bytes);
+    deletePages(doc, [1]);
+    writeFileSync(join(OUT, 'pages-0.4-revu-deleted.pdf'), await saveFull(doc));
+    console.log('wrote pages-0.4-revu-deleted.pdf');
+  }
+}
+
 if (!existsSync(FIXTURES)) throw new Error(`fixtures directory missing: ${FIXTURES}`);
 mkdirSync(OUT, { recursive: true });
 await spike01();
 await spike02();
+await pages04();
 if (!process.argv.includes('--spikes-only')) await corpusMoved();

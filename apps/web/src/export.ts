@@ -9,6 +9,7 @@
 import type { Markup, RedlineDocument } from '@redline/pdf-core';
 import { countGroupOf } from '@redline/pdf-core';
 import { buildXlsx, type Cell } from './xlsx';
+import { downloadBytes } from './download';
 
 export interface ExportRow {
   subject: string;
@@ -202,31 +203,22 @@ export function markupsXlsx(doc: RedlineDocument): Uint8Array {
   ]);
 }
 
-function download(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
-
 /** Trigger a browser download of the CSV. */
 export function downloadMarkupsCsv(doc: RedlineDocument, fileName: string): void {
   const csv = markupsCsv(doc);
-  download(
-    new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }),
+  downloadBytes(
+    '\uFEFF' + csv,
     `${fileName.replace(/\.pdf$/i, '')}.markups.csv`,
+    'text/csv;charset=utf-8',
   );
 }
 
 /** Trigger a browser download of the XLSX. */
 export function downloadMarkupsXlsx(doc: RedlineDocument, fileName: string): void {
   const bytes = markupsXlsx(doc);
-  download(
-    new Blob([bytes as BlobPart], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }),
+  downloadBytes(
+    bytes,
     `${fileName.replace(/\.pdf$/i, '')}.markups.xlsx`,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   );
 }

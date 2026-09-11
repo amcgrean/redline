@@ -78,6 +78,8 @@ export interface Session {
   pdfjs: PdfjsHandle;
   file: FileTarget;
   history: History;
+  /** Page-structure changes (full rewrites) with the bytes to restore; own undo stack. */
+  pageHistory: { label: string; bytes: Uint8Array }[];
   dirty: boolean;
   /** Identifies this document's autosave slot across reloads. */
   autosaveKey: string;

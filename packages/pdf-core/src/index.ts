@@ -14,6 +14,18 @@ export {
   parseMeasureDict,
 } from './measure/viewport.js';
 export { deleteMarkup, restoreMarkup, pageHasNoAnnots } from './annots/delete.js';
+export {
+  rotatePages,
+  deletePages,
+  movePages,
+  insertBlankPage,
+  insertPagesFrom,
+  extractPages,
+  mergeDocuments,
+  saveFull,
+  pageRotation,
+} from './pages/ops.js';
+
 export { duplicateMarkup, setMarkupLocked } from './annots/duplicate.js';
 export type { DuplicateOptions } from './annots/duplicate.js';
 export {

@@ -16,6 +16,7 @@ import type {
   MarkupPatch,
   PageScale,
   Point,
+  RedlineDocument,
   Scale,
   Rect,
   ShapeGeometry,
@@ -23,7 +24,16 @@ import type {
   TextStyle,
   UnitFormat,
 } from '@redline/pdf-core';
-import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
+import {
+  countGroupOf,
+  generateNM,
+  openDocument,
+  saveFull,
+  saveIncremental,
+} from '@redline/pdf-core';
+
+/** How many page-structure changes stay undoable (each holds a copy of the file). */
+const PAGE_HISTORY_LIMIT = 5;
 import { loadPdfjs } from '../pdfjs';
 import type { FileTarget } from '../fileTarget';
 import { db, rememberRecent, type AutosaveEntry } from '../db';
@@ -158,6 +168,10 @@ export interface EditorUiState {
   profile: Profile;
   /** Snap to endpoints/midpoints while drawing (Alt overrides for one point). */
   snapEnabled: boolean;
+  /** Selected page indices in the Pages panel. */
+  pageSelection: number[];
+  /** A page operation (full rewrite + reload) is in flight. */
+  pageBusy: boolean;
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
   spacePan: boolean;
   /** Bumps on every document mutation so subscribers re-render. */
@@ -197,6 +211,8 @@ export const useEditorStore = create<EditorUiState>()(
     showProfile: false,
     profile: defaultProfile('local'),
     snapEnabled: true,
+    pageSelection: [],
+    pageBusy: false,
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -217,9 +233,10 @@ function syncActive(s: EditorUiState, session: Session | undefined): void {
   s.fileName = session?.file.name;
   s.pageCount = session ? session.doc.pdfDoc.getPageCount() : 0;
   s.dirty = session?.dirty ?? false;
-  s.canUndo = session?.history.canUndo ?? false;
+  s.canUndo = (session?.history.canUndo || (session?.pageHistory.length ?? 0) > 0) ?? false;
   s.canRedo = session?.history.canRedo ?? false;
-  s.undoLabel = session?.history.undoLabel;
+  s.undoLabel =
+    session?.history.undoLabel ?? session?.pageHistory[session.pageHistory.length - 1]?.label;
   s.redoLabel = session?.history.redoLabel;
 }
 
@@ -273,6 +290,7 @@ export const actions = {
       pdfjs,
       file,
       history: new History(),
+      pageHistory: [],
       // A recovered document has changes the user never saved: keep it dirty and keep
       // autosaving into the same slot until they Save.
       dirty: !!options.recovered,
@@ -282,6 +300,7 @@ export const actions = {
     set((s) => {
       syncActive(s, session);
       s.find = { open: false, query: '', hits: [], index: 0 };
+      s.pageSelection = [];
       s.autosave = options.recovered ? 'saved' : 'idle';
       s.selectedId = undefined;
       s.selectedIds = [];
@@ -344,6 +363,101 @@ export const actions = {
       // A chest tool only stays active while its kind is the tool in use.
       const active = s.chest?.tools.find((t) => t.id === s.activeToolId);
       if (active && active.kind !== tool) s.activeToolId = undefined;
+    });
+  },
+
+  // ---- pages ----
+
+  selectPages(indices: number[]): void {
+    set((s) => {
+      s.pageSelection = [...new Set(indices)].sort((a, b) => a - b);
+    });
+  },
+
+  togglePageSelection(index: number): void {
+    set((s) => {
+      s.pageSelection = s.pageSelection.includes(index)
+        ? s.pageSelection.filter((i) => i !== index)
+        : [...s.pageSelection, index].sort((a, b) => a - b);
+    });
+  },
+
+  /** Shift-click: select the range from the current page (or last selected) to `index`. */
+  extendPageSelection(index: number): void {
+    set((s) => {
+      const anchor = s.pageSelection.length
+        ? s.pageSelection[s.pageSelection.length - 1]!
+        : s.currentPage;
+      const [a, b] = anchor < index ? [anchor, index] : [index, anchor];
+      const range = Array.from({ length: b - a + 1 }, (_, k) => a + k);
+      s.pageSelection = [...new Set([...s.pageSelection, ...range])].sort((x, y) => x - y);
+    });
+  },
+
+  /**
+   * Apply a page-structure change: run `fn` on the live document, rewrite it in full,
+   * and re-open the result (pdf.js included). The bytes from before the change go on the
+   * session's page-history stack so Ctrl+Z can bring them back.
+   */
+  async pageOperation(
+    label: string,
+    fn: (doc: RedlineDocument) => void | Promise<void>,
+    after: { select?: number[]; goTo?: number } = {},
+  ): Promise<void> {
+    const session = getSession();
+    if (!session || useEditorStore.getState().pageBusy) return;
+    set((s) => {
+      s.pageBusy = true;
+      s.status = `${label}…`;
+    });
+    try {
+      const before = (await saveIncremental(session.doc)).bytes;
+      await fn(session.doc);
+      const bytes = await saveFull(session.doc);
+      const [doc, pdfjs] = await loadBoth(bytes);
+      replaceSessionDocument(session, doc, pdfjs, session.file);
+      session.pageHistory.push({ label, bytes: before });
+      if (session.pageHistory.length > PAGE_HISTORY_LIMIT) session.pageHistory.shift();
+      const pageCount = doc.pdfDoc.getPageCount();
+      const goTo = Math.max(
+        0,
+        Math.min(after.goTo ?? useEditorStore.getState().currentPage, pageCount - 1),
+      );
+      bump({
+        status: label,
+        selectedId: undefined,
+        selectedIds: [],
+        pageSelection: (after.select ?? []).filter((i) => i >= 0 && i < pageCount),
+        currentPage: goTo,
+        pageBusy: false,
+        find: { open: false, query: '', hits: [], index: 0 },
+      });
+      actions.goToPage(goTo);
+    } catch (error) {
+      set((s) => {
+        s.pageBusy = false;
+        s.status = `${label} failed: ${(error as Error).message}`;
+      });
+    }
+  },
+
+  async undoPageOperation(): Promise<void> {
+    const session = getSession();
+    const entry = session?.pageHistory.pop();
+    if (!session || !entry) return;
+    set((s) => {
+      s.pageBusy = true;
+    });
+    const [doc, pdfjs] = await loadBoth(entry.bytes);
+    replaceSessionDocument(session, doc, pdfjs, session.file);
+    const pageCount = doc.pdfDoc.getPageCount();
+    bump({
+      status: `Undo ${entry.label}`,
+      selectedId: undefined,
+      selectedIds: [],
+      pageSelection: [],
+      currentPage: Math.min(useEditorStore.getState().currentPage, pageCount - 1),
+      pageBusy: false,
     });
   },
 
@@ -1093,6 +1207,10 @@ export const actions = {
 
   undo(): void {
     const session = getSession();
+    if (session && !session.history.canUndo && session.pageHistory.length > 0) {
+      void actions.undoPageOperation();
+      return;
+    }
     const command = session?.history.undo();
     if (!command) return;
     // Keep the selection: a property edit undone should stay editable. A markup that

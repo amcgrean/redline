@@ -15,6 +15,8 @@ Open every file in `fixtures/out/` in **Bluebeam Revu 21**, **Acrobat**, **Chrom
 | 9   | Stamps appear as Stamp markups (Revu: editable color/opacity/rotation)                |      |         |        |      |
 | 10  | Text boxes, callouts, and notes show correct text, font size, alignment               |      |         |        |      |
 | 11  | Page reorder/rotate/delete/merge results are correct and bookmarks survived           |      |         |        |      |
+| 11a | `pages-0.4-revu-rotated-reordered.pdf`: page 1 rotated 90°, last page moved first; Revu Markups List values unchanged, custom columns/spaces intact |      |         |        |      |
+| 11b | `pages-0.4-revu-deleted.pdf`: page 2 removed; remaining markups intact, no orphan rows in the Markups List |      |         |        |      |
 | 12  | Print preview shows markups (`/F 4`)                                                  |      |         |        |      |
 
 ## Round-trip (Revu-authored fixtures edited in Redline)
