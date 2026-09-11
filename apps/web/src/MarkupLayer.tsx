@@ -73,7 +73,6 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   /** The snap point the pointer is currently on, for the indicator. */
   const [snapHit, setSnapHit] = useState<Point | undefined>();
   const snapHitRef = useRef<Point | undefined>(undefined);
-  const snapCache = useRef<{ key: string; list: SnapCandidate[] }>({ key: '', list: [] });
   void version; // re-render on every mutation
 
   const toPx = (p: Point): [number, number] => {
@@ -156,18 +155,13 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
 
   /** Snap targets on this page, rebuilt when the document changes. */
   const candidates = (excludeId?: string): SnapCandidate[] => {
+    // Computed on demand from the live document (a page has tens of markups, not thousands),
+    // so a handler closure from an earlier render can never see a stale list.
     if (!doc || !snapEnabled) return [];
-    const key = `${version}:${pageIndex}:${excludeId ?? ''}`;
-    if (snapCache.current.key !== key) {
-      snapCache.current = {
-        key,
-        list: snapCandidates(
-          doc.markups.filter((m) => m.pageIndex === pageIndex),
-          excludeId,
-        ),
-      };
-    }
-    return snapCache.current.list;
+    return snapCandidates(
+      doc.markups.filter((m) => m.pageIndex === pageIndex),
+      excludeId,
+    );
   };
   /** 10 screen pixels in user space. */
   const snapTolerance = (): number => {
@@ -715,7 +709,7 @@ interface ShapeProps {
   toPdf: (x: number, y: number) => Point;
   zoom: number;
   snap: (id: string, p: Point, evt: MouseEvent) => Point;
-  /** Only the Select tool hits markups; drawing tools click through to the page. */
+  /** Only the Select tool selects on click; drawing tools let the click bubble to the page. */
   interactive: boolean;
 }
 
@@ -761,6 +755,8 @@ function MarkupShape({
   };
 
   const onSelect = (event: KonvaEventObject<MouseEvent>) => {
+    // Drawing tools click through: let the event bubble to the Stage, which draws.
+    if (!interactive) return;
     event.cancelBubble = true;
     const { selectedIds } = useEditorStore.getState();
     if (event.evt.shiftKey || event.evt.ctrlKey) actions.toggleSelect(markup.id);
@@ -900,13 +896,7 @@ function MarkupShape({
   const selBox = rectPx(markup.render === 'ap-bitmap' ? markup.rect : geometryBounds(markup), toPx);
 
   return (
-    <Group
-      ref={groupRef}
-      draggable={draggable}
-      onDragEnd={onDragEnd}
-      onClick={onSelect}
-      listening={interactive}
-    >
+    <Group ref={groupRef} draggable={draggable} onDragEnd={onDragEnd} onClick={onSelect}>
       {body}
       {caption && captionAt && markup.render === 'native' && (
         <Text
