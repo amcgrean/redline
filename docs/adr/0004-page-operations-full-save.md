@@ -35,11 +35,12 @@ file, so both go stale the moment the page tree changes.
 - The file's incremental-update history collapses into one xref after a page operation.
   Every parsed object keeps its keys (verified by `pages.test.ts` on the synthetic Revu
   fixture: identical key sets per markup, `/BSISpaces` on the page).
-- Bookmarks: `/Outlines` stay intact for rotate/delete/move within one document, but
-  pdf-lib's `copyPages` does not carry the source's outlines, so **merge and insert-from
-  drop the incoming file's bookmarks**, and outlines pointing at deleted pages dangle.
-  PLAN Phase 4 acceptance ("merge 10 files with bookmarks preserved") is therefore not met
-  yet; an outline-merging pass is a follow-up.
+- Bookmarks: pdf-lib's `copyPages` does not carry `/Outlines`, so `pages/outlines.ts`
+  reads them as a title/page tree and writes them back: merge and insert-from append the
+  source's bookmarks re-pointed at the copied pages, extract keeps the ones for the pages
+  taken, delete prunes items whose page went away, rotate/move need nothing (items refer
+  to page objects). Only page destinations are carried; URI/JavaScript actions and
+  destination zoom rectangles are dropped (`/Fit` is written). Updated 2026-09-11.
 - Needs Aaron's Revu check (interop checklist): a rotated page with measurements reads the
   same values; page reorder survives a Revu reopen; a Revu file after insert/delete keeps
   its custom columns and spaces.

@@ -31,6 +31,9 @@ import {
   countGroupOf,
   embedStampArtwork,
   flattenMarkups,
+  everyN,
+  parseRanges,
+  splitDocument,
   optimizePdf,
   describeSavings,
   generateNM,
@@ -647,6 +650,40 @@ export const actions = {
       pageBusy: false,
       compress: undefined,
     });
+  },
+
+  // ---- split ----
+
+  /** `spec` is a number (every N pages) or ranges like `1-3, 4, 7-`. Downloads one file per part. */
+  async split(spec: string): Promise<void> {
+    const session = getSession();
+    if (!session) return;
+    const pageCount = session.doc.pdfDoc.getPageCount();
+    try {
+      const ranges = /^\s*\d+\s*$/.test(spec)
+        ? everyN(pageCount, Number(spec))
+        : parseRanges(spec, pageCount);
+      set((s) => {
+        s.status = `Splitting into ${ranges.length} files…`;
+      });
+      const parts = await splitDocument(session.doc, ranges);
+      const base = session.file.name.replace(/\.pdf$/i, '');
+      parts.forEach((part, k) => {
+        const range = part.from === part.to ? `p${part.from}` : `p${part.from}-${part.to}`;
+        // Stagger the downloads: browsers drop a burst of simultaneous downloads.
+        setTimeout(
+          () => downloadBytes(part.bytes, `${base}.${range}.pdf`, 'application/pdf'),
+          k * 150,
+        );
+      });
+      set((s) => {
+        s.status = `Split into ${parts.length} file${parts.length === 1 ? '' : 's'}`;
+      });
+    } catch (error) {
+      set((s) => {
+        s.status = `Split failed: ${(error as Error).message}`;
+      });
+    }
   },
 
   // ---- flatten ----

@@ -11,9 +11,9 @@
  * What survives a full rewrite: every object pdf-lib parsed is re-serialised with its
  * keys intact (Bluebeam's `/BSI*`, `/RC`, `/Measure`, custom columns, spaces). What does
  * not: the file's incremental-update history (flattened into one xref), and objects that
- * nothing references any more. Bookmarks (`/Outlines`) are kept on rotate/delete/move
- * within a document; `copyPages` does not carry the source's outlines, so merge and
- * insert-from drop the incoming file's bookmarks (see ADR 0004).
+ * nothing references any more. Bookmarks (`/Outlines`) survive rotate and move (they
+ * reference page objects), are pruned on delete, and are carried by merge, insert-from
+ * and extract through `outlines.ts` (`copyPages` alone would drop them; see ADR 0004).
  */
 
 import {
@@ -26,6 +26,13 @@ import {
   type PDFPage,
 } from '@cantoo/pdf-lib';
 import type { RedlineDocument } from '../types.js';
+import {
+  pruneOutlines,
+  readOutlines,
+  remapOutlines,
+  writeOutlines,
+  type OutlineItem,
+} from './outlines.js';
 
 function normalizeIndices(doc: RedlineDocument, indices: readonly number[]): number[] {
   const count = doc.pdfDoc.getPageCount();
@@ -54,6 +61,12 @@ export function deletePages(doc: RedlineDocument, indices: readonly number[]): n
   const list = normalizeIndices(doc, indices);
   const count = doc.pdfDoc.getPageCount();
   if (list.length >= count) throw new Error('A document must keep at least one page');
+  const outlines = readOutlines(doc.pdfDoc);
+  const removed = new Set(list);
+  const newIndex = (i: number): number | undefined => {
+    if (removed.has(i)) return undefined;
+    return i - list.filter((r) => r < i).length;
+  };
   for (const i of [...list].reverse()) {
     // Drop the page's annotations too, so the rewrite does not carry orphaned objects.
     const page = doc.pdfDoc.getPage(i);
@@ -71,6 +84,9 @@ export function deletePages(doc: RedlineDocument, indices: readonly number[]): n
       }
     }
     doc.pdfDoc.removePage(i);
+  }
+  if (outlines.length > 0) {
+    writeOutlines(doc.pdfDoc, pruneOutlines(remapOutlines(outlines, newIndex)));
   }
   return list.length;
 }
@@ -123,7 +139,20 @@ export async function insertPagesFrom(
   const copied = await doc.pdfDoc.copyPages(source, which);
   const count = doc.pdfDoc.getPageCount();
   const at = Math.max(0, Math.min(count, index));
+  const existing = readOutlines(doc.pdfDoc);
   copied.forEach((page, k) => doc.pdfDoc.insertPage(at + k, page));
+  // Bookmarks: shift the target's own items past the insertion, then append the
+  // source's items re-pointed at the copied pages (those not copied lose their page).
+  const shifted = remapOutlines(existing, (i) => (i >= at ? i + copied.length : i));
+  const incoming = pruneOutlines(
+    remapOutlines(readOutlines(source), (i) => {
+      const k = which.indexOf(i);
+      return k === -1 ? undefined : at + k;
+    }),
+  );
+  if (shifted.length + incoming.length > 0) {
+    writeOutlines(doc.pdfDoc, [...shifted, ...incoming]);
+  }
   return copied.length;
 }
 
@@ -133,19 +162,31 @@ export async function extractPages(
   indices: readonly number[],
 ): Promise<Uint8Array> {
   const out = await PDFDocument.create({ updateMetadata: false });
-  const copied = await out.copyPages(doc.pdfDoc, [...indices]);
+  const list = [...indices];
+  const copied = await out.copyPages(doc.pdfDoc, list);
   for (const page of copied) out.addPage(page);
+  const bookmarks = pruneOutlines(
+    remapOutlines(readOutlines(doc.pdfDoc), (i) => {
+      const k = list.indexOf(i);
+      return k === -1 ? undefined : k;
+    }),
+  );
+  if (bookmarks.length > 0) writeOutlines(out, bookmarks);
   return out.save({ useObjectStreams: false });
 }
 
-/** Concatenate several PDFs into one. Markups come along; bookmarks do not (ADR 0004). */
+/** Concatenate several PDFs into one. Markups and bookmarks come along. */
 export async function mergeDocuments(sources: readonly Uint8Array[]): Promise<Uint8Array> {
   const out = await PDFDocument.create({ updateMetadata: false });
+  const bookmarks: OutlineItem[] = [];
   for (const bytes of sources) {
     const source = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true });
+    const offset = out.getPageCount();
     const copied = await out.copyPages(source, source.getPageIndices());
     for (const page of copied) out.addPage(page);
+    bookmarks.push(...remapOutlines(readOutlines(source), (i) => i + offset));
   }
+  if (bookmarks.length > 0) writeOutlines(out, bookmarks);
   return out.save({ useObjectStreams: false });
 }
 

@@ -169,6 +169,21 @@ export function PagesPanel({ pdfjs }: { pdfjs: PdfjsDocument }) {
           <button
             type="button"
             disabled={busy}
+            title="Split into several files: every N pages, or ranges like 1-3, 4, 7-"
+            aria-label="Split"
+            onClick={() => {
+              const spec = window.prompt(
+                `Split ${pageCount} pages: enter a number (every N pages) or ranges like 1-3, 4, 7-`,
+                '1',
+              );
+              if (spec && spec.trim()) void actions.split(spec.trim());
+            }}
+          >
+            Split…
+          </button>
+          <button
+            type="button"
+            disabled={busy}
             title="Lossless optimize through qpdf, with a size preview"
             aria-label="Compress"
             onClick={() => void actions.optimize()}

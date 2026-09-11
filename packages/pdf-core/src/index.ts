@@ -154,3 +154,13 @@ export type {
 } from './compress/emscripten.js';
 export { listImages, downsampleTarget, replaceImageWithJpeg } from './compress/images.js';
 export type { ImageInfo } from './compress/images.js';
+export {
+  readOutlines,
+  writeOutlines,
+  remapOutlines,
+  pruneOutlines,
+  outlinesOf,
+} from './pages/outlines.js';
+export type { OutlineItem } from './pages/outlines.js';
+export { parseRanges, everyN, splitDocument } from './pages/split.js';
+export type { SplitPart } from './pages/split.js';
