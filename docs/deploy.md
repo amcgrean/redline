@@ -1,5 +1,9 @@
 # Deploying
 
+**Live:** https://redline-1tr.pages.dev (Cloudflare Pages project `redline`; the subdomain got a
+`-1tr` suffix because `redline.pages.dev` was already taken by another account). Every green CI run
+on `main` redeploys it.
+
 Redline is a static single-page app: `pnpm build` produces `apps/web/dist` and nothing else is
 needed at runtime. Every document, autosave and recent stays in the user's browser. Hosting on
 https also enables in-place Save (File System Access API) in Chrome and Edge.
@@ -19,8 +23,8 @@ first use. One-time setup, done by the repo owner in the Cloudflare dashboard:
    secret, twice:
    - `CLOUDFLARE_ACCOUNT_ID` = the account id
    - `CLOUDFLARE_API_TOKEN` = the token
-4. Actions → **Deploy** → Run workflow (or push to `main`). The run log prints the
-   `https://redline.pages.dev` URL (or `https://<hash>.redline.pages.dev` per deploy).
+4. Actions → **Deploy** → Run workflow (or push to `main`). The run log prints the production
+   URL and a per-deploy `https://<hash>.redline-1tr.pages.dev` preview URL.
 
 Custom domain later: Pages project → Custom domains.
 
