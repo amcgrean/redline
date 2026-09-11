@@ -61,25 +61,32 @@ export function tilesFor(width: number, height: number, dpr: number): Tile[] {
  * Render one tile of a page into `canvas`. The viewport is the FULL page at the current
  * zoom; the render transform shifts it so the tile's region lands at the canvas origin.
  */
-export async function renderTile(
+export interface TileRender {
+  promise: Promise<void>;
+  /** Abort a render whose zoom/rotation is already stale; its promise rejects. */
+  cancel: () => void;
+}
+
+export function renderTile(
   page: PdfjsPage,
   viewport: PageViewport,
   tile: Tile,
   dpr: number,
   canvas: HTMLCanvasElement,
-): Promise<void> {
+): TileRender {
   canvas.width = Math.ceil(tile.width * dpr);
   canvas.height = Math.ceil(tile.height * dpr);
   canvas.style.width = `${tile.width}px`;
   canvas.style.height = `${tile.height}px`;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  await page.render({
+  if (!ctx) return { promise: Promise.resolve(), cancel: () => undefined };
+  const task = page.render({
     canvas,
     canvasContext: ctx,
     viewport,
     transform: [dpr, 0, 0, dpr, -tile.x * dpr, -tile.y * dpr],
     // Redline draws every markup itself so the view matches what will be saved.
     annotationMode: AnnotationMode.DISABLE,
-  }).promise;
+  });
+  return { promise: task.promise, cancel: () => task.cancel() };
 }

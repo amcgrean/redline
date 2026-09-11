@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PdfjsDocument, PdfjsPage, PageViewport } from './pdfjs';
-import { renderTile, tilesFor, type Tile } from './pdfjs';
+import { renderTile, tilesFor, type Tile, type TileRender } from './pdfjs';
 import { MarkupLayer } from './MarkupLayer';
 import { TextLayer } from './TextLayer';
 import { FindHighlights } from './FindHighlights';
@@ -338,16 +338,23 @@ function PageTiles({ page, viewport, cacheKey, visible }: PageTilesProps) {
   const cache = useRef(new Map<string, HTMLCanvasElement>());
   const cacheKeyRef = useRef<{ key: string; page: PdfjsPage }>({ key: cacheKey, page });
   const hostRef = useRef<HTMLDivElement>(null);
-  const inflight = useRef(new Set<string>());
+  const inflight = useRef(new Map<string, TileRender>());
   const failures = useRef(new Map<string, number>());
+  /** Set when the cache was invalidated; the attach effect then clears the host. */
+  const stale = useRef(false);
   const [, force] = useState(0);
 
-  // A new zoom/rotation or a new page proxy (the document was re-opened) invalidates every tile.
+  // A new zoom/rotation or a new page proxy (the document was re-opened) invalidates every
+  // tile: forget cached canvases, cancel renders still running for the old zoom, and flag
+  // the DOM so canvases from the old zoom are removed (they kept their old size and used
+  // to linger next to the new ones).
   if (cacheKeyRef.current.key !== cacheKey || cacheKeyRef.current.page !== page) {
     cache.current.clear();
+    for (const task of inflight.current.values()) task.cancel();
     inflight.current.clear();
     failures.current.clear();
     cacheKeyRef.current = { key: cacheKey, page };
+    stale.current = true;
   }
 
   const needed = tiles.filter((t) =>
@@ -356,28 +363,34 @@ function PageTiles({ page, viewport, cacheKey, visible }: PageTilesProps) {
 
   useEffect(() => {
     let cancelled = false;
+    const generation = cacheKeyRef.current;
     for (const tile of needed) {
       const key = `${tile.x}:${tile.y}`;
       if (cache.current.has(key) || inflight.current.has(key)) continue;
       if ((failures.current.get(key) ?? 0) >= 3) continue;
-      inflight.current.add(key);
       const canvas = document.createElement('canvas');
       canvas.className = 'tile';
       canvas.style.left = `${tile.x}px`;
       canvas.style.top = `${tile.y}px`;
-      renderTile(page, viewport, tile, dpr, canvas)
+      const render = renderTile(page, viewport, tile, dpr, canvas);
+      inflight.current.set(key, render);
+      render.promise
         .then(() => {
-          if (cancelled) return;
+          // Only a render for the CURRENT zoom/rotation may land in the cache.
+          if (cancelled || cacheKeyRef.current !== generation) return;
           cache.current.set(key, canvas);
           force((n) => n + 1);
         })
         .catch(() => {
+          if (cacheKeyRef.current !== generation) return; // cancelled on purpose
           // A render can fail when the document is swapped mid-flight; retry a few times.
           const count = (failures.current.get(key) ?? 0) + 1;
           failures.current.set(key, count);
           if (count < 3 && !cancelled) setTimeout(() => force((n) => n + 1), 100);
         })
-        .finally(() => inflight.current.delete(key));
+        .finally(() => {
+          if (inflight.current.get(key) === render) inflight.current.delete(key);
+        });
     }
     return () => {
       cancelled = true;
@@ -388,10 +401,16 @@ function PageTiles({ page, viewport, cacheKey, visible }: PageTilesProps) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    if (stale.current) {
+      // Everything in the host belongs to a previous zoom/rotation.
+      host.replaceChildren();
+      stale.current = false;
+    }
     const wanted = new Set(needed.map((t) => `${t.x}:${t.y}`));
     for (const child of Array.from(host.children)) {
       const key = child.getAttribute('data-key');
-      if (key && !wanted.has(key)) host.removeChild(child);
+      // Drop tiles that scrolled out of view, and any canvas a newer one has replaced.
+      if (key && (!wanted.has(key) || cache.current.get(key) !== child)) host.removeChild(child);
     }
     for (const tile of needed) {
       const key = `${tile.x}:${tile.y}`;
