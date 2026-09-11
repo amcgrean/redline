@@ -8,6 +8,9 @@ import type {
   Geometry,
   ShapeGeometry,
   ShapeOptions,
+  TextOptions,
+  NoteOptions,
+  Rect,
   Markup,
   MarkupPatch,
   MeasurementOptions,
@@ -24,6 +27,10 @@ import {
   addLengthMeasurement,
   addPolylineMeasurement,
   addShapeMarkup,
+  addTextBox,
+  addCallout,
+  addNote,
+  setMarkupText,
   clearPageScale,
   deleteMarkup,
   moveMarkup,
@@ -232,6 +239,65 @@ export function addShapeCommand(
     (nm) => addShapeMarkup(doc, pageIndex, geometry, nm ? { ...options, nm } : options),
     doc,
   );
+}
+
+export function addTextBoxCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  rect: Rect,
+  options: TextOptions,
+): AddCommand {
+  return addCommand(
+    'Text box',
+    (nm) => addTextBox(doc, pageIndex, rect, nm ? { ...options, nm } : options),
+    doc,
+  );
+}
+
+export function addCalloutCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  rect: Rect,
+  target: Point,
+  options: TextOptions,
+): AddCommand {
+  return addCommand(
+    'Callout',
+    (nm) => addCallout(doc, pageIndex, rect, target, nm ? { ...options, nm } : options),
+    doc,
+  );
+}
+
+export function addNoteCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  at: Point,
+  options: NoteOptions,
+): AddCommand {
+  return addCommand(
+    'Note',
+    (nm) => addNote(doc, pageIndex, at, nm ? { ...options, nm } : options),
+    doc,
+  );
+}
+
+/** Change a markup's text. Undo restores the previous text and /M. */
+export function setTextCommand(doc: RedlineDocument, id: string, text: string): Command {
+  let previous: string | undefined;
+  let previousModified: Date | undefined;
+  return {
+    label: 'Edit text',
+    do() {
+      const m = doc.markups.find((x) => x.id === id);
+      if (!m) return;
+      previous = m.text?.contents ?? '';
+      previousModified = m.text?.modified;
+      setMarkupText(doc, id, text);
+    },
+    undo() {
+      if (previous !== undefined) setMarkupText(doc, id, previous, previousModified ?? new Date());
+    },
+  };
 }
 
 /** Deep copy so undo is not affected by later in-place edits. */

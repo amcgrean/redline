@@ -76,6 +76,24 @@ export function PropertiesPanel() {
           }}
         />
       </label>
+      {(markup.rawSubtype === 'FreeText' || markup.rawSubtype === 'Text') && (
+        <label className="prop">
+          Text
+          <textarea
+            aria-label="Markup text"
+            rows={3}
+            defaultValue={markup.text?.contents ?? ''}
+            key={`${markup.id}:${markup.text?.contents ?? ''}`}
+            disabled={markup.flags.locked}
+            onBlur={(e) => actions.setText(markup.id, e.target.value.trim())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                (e.target as HTMLTextAreaElement).blur();
+              }
+            }}
+          />
+        </label>
+      )}
       {group && groupIds && groupIds.length > 1 && (
         <label className="prop-inline">
           <input

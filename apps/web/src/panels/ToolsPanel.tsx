@@ -21,6 +21,9 @@ const KIND_LABEL: Record<Tool['kind'], string> = {
   arrow: 'Arrow',
   polygon: 'Polygon',
   pen: 'Pen',
+  textbox: 'Text box',
+  callout: 'Callout',
+  note: 'Note',
 };
 
 function ToolRow({ tool, index }: { tool: Tool; index: number }) {

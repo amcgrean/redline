@@ -17,8 +17,10 @@ import type {
   PageScale,
   Point,
   Scale,
+  Rect,
   ShapeGeometry,
   ShapeStyle,
+  TextStyle,
   UnitFormat,
 } from '@redline/pdf-core';
 import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
@@ -61,6 +63,10 @@ import {
   addLengthCommand,
   addPolylineCommand,
   addShapeCommand,
+  addTextBoxCommand,
+  addCalloutCommand,
+  addNoteCommand,
+  setTextCommand,
   calibratePagesCommand,
   deleteCommand,
   geometryCommand,
@@ -87,7 +93,10 @@ export type Tool =
   | 'line'
   | 'arrow'
   | 'polygon'
-  | 'pen';
+  | 'pen'
+  | 'textbox'
+  | 'callout'
+  | 'note';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -830,6 +839,53 @@ export const actions = {
     return command.markup;
   },
 
+  addTextBox(pageIndex: number, rect: Rect, text: string): Markup | undefined {
+    const { doc, history } = requireSession();
+    const command = addTextBoxCommand(doc, pageIndex, rect, textOptions('textbox', 'Text', text));
+    history.run(command);
+    bump({ selectedId: command.id, selectedIds: [command.id], status: 'Text box' });
+    return command.markup;
+  },
+
+  addCallout(pageIndex: number, rect: Rect, target: Point, text: string): Markup | undefined {
+    const { doc, history } = requireSession();
+    const command = addCalloutCommand(
+      doc,
+      pageIndex,
+      rect,
+      target,
+      textOptions('callout', 'Callout', text),
+    );
+    history.run(command);
+    bump({ selectedId: command.id, selectedIds: [command.id], status: 'Callout' });
+    return command.markup;
+  },
+
+  addNote(pageIndex: number, at: Point, text: string): Markup | undefined {
+    const { doc, history } = requireSession();
+    const state = useEditorStore.getState();
+    const active = state.chest?.tools.find((t) => t.id === state.activeToolId);
+    const command = addNoteCommand(doc, pageIndex, at, {
+      subject: active?.kind === 'note' ? active.subject : 'Note',
+      author: state.author,
+      text,
+      ...(active?.kind === 'note' && { color: fromHex(active.style.fill ?? active.style.stroke) }),
+    });
+    history.run(command);
+    bump({ selectedId: command.id, selectedIds: [command.id], status: 'Note' });
+    return command.markup;
+  },
+
+  /** Edit the text of a text box, callout or note. */
+  setText(id: string, text: string): void {
+    const { doc, history } = requireSession();
+    const m = doc.markups.find((x) => x.id === id);
+    if (!m || (m.text?.contents ?? '') === text) return;
+    const command = setTextCommand(doc, id, text);
+    history.run(command);
+    bump({ status: command.label });
+  },
+
   /** Vertex edit / resize of one markup. */
   setGeometry(id: string, geometry: Geometry): void {
     const { doc, history } = requireSession();
@@ -962,6 +1018,24 @@ function countStyleOf(tool: ChestTool): Partial<CountStyle> {
   };
 }
 
+/** Subject/author/style for a text markup: the active chest tool's when it matches. */
+function textOptions(kind: 'textbox' | 'callout', fallbackSubject: string, text: string) {
+  const state = useEditorStore.getState();
+  const active = state.chest?.tools.find((t) => t.id === state.activeToolId);
+  if (!active || active.kind !== kind) {
+    return { subject: fallbackSubject, author: state.author, text };
+  }
+  const s = active.style;
+  const style: Partial<TextStyle> = {
+    stroke: fromHex(s.stroke),
+    ...(s.fill && { fill: fromHex(s.fill) }),
+    borderWidth: s.lineWidth,
+    opacity: s.opacity,
+    ...(s.font?.size && { fontSize: s.font.size }),
+  };
+  return { subject: active.subject, author: state.author, text, style };
+}
+
 const SHAPE_LABEL: Record<ShapeGeometry['kind'], string> = {
   rectangle: 'Rectangle',
   ellipse: 'Ellipse',
@@ -998,6 +1072,10 @@ function toolKindOf(m: Markup): ChestTool['kind'] | undefined {
     return a && b && p.length > 2 && a.x === b.x && a.y === b.y ? 'perimeter' : 'polylength';
   }
   switch (m.rawSubtype) {
+    case 'FreeText':
+      return m.intent === 'FreeTextCallout' ? 'callout' : 'textbox';
+    case 'Text':
+      return 'note';
     case 'Square':
       return 'rectangle';
     case 'Circle':

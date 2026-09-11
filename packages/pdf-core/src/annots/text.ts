@@ -256,6 +256,7 @@ function writeFreeText(
     subtype: 'FreeText',
     rawSubtype: 'FreeText',
     ...(target && { intent: 'FreeTextCallout' }),
+    ...(leader && { callout: leader }),
     geometry: { kind: 'rect', rect },
     rect: bounds,
     style: {
@@ -395,8 +396,17 @@ export function regenerateTextAppearance(doc: RedlineDocument, markup: Markup): 
       const n = cl.lookup(i);
       if (n instanceof PDFNumber) nums.push(n.asNumber());
     }
-    leader = [];
-    for (let i = 0; i + 1 < nums.length; i += 2) leader.push({ x: nums[i]!, y: nums[i + 1]! });
+    const tip = { x: nums[0]!, y: nums[1]! };
+    // Re-route the leader to the (possibly resized/moved) box so knee and edge stay attached.
+    leader = calloutLeader(markup.geometry.rect, tip);
+    raw.set(
+      PDFName.of('CL'),
+      numArray(
+        doc.pdfDoc.context,
+        leader.flatMap((p) => [p.x, p.y]),
+      ),
+    );
+    markup.callout = leader;
   }
   const appearance = buildTextBoxAppearance({
     rect: markup.geometry.rect,
@@ -412,6 +422,14 @@ export function regenerateTextAppearance(doc: RedlineDocument, markup: Markup): 
     ...(leader && { leader }),
   });
   markup.rect = attach(doc.pdfDoc.context, raw, appearance, style.opacity);
+  if (leader) {
+    const r = markup.geometry.rect;
+    const b = markup.rect;
+    raw.set(
+      PDFName.of('RD'),
+      numArray(doc.pdfDoc.context, [r[0] - b[0], r[1] - b[1], b[2] - r[2], b[3] - r[3]]),
+    );
+  }
   return true;
 }
 

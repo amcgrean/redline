@@ -65,7 +65,7 @@ test('find steps through hits across pages and highlights them', async ({ page }
 test('the Text tool exposes selectable page text', async ({ page }) => {
   await openDoc(page);
   await expect(page.getByTestId('text-layer')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await page.getByRole('button', { name: 'Select Text', exact: true }).click();
   const layer = page.getByTestId('text-layer').first();
   await expect(layer).toBeVisible();
   await expect(layer.locator('span', { hasText: 'FRONT ELEVATION' })).toBeVisible();

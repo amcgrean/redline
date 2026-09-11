@@ -27,7 +27,11 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
     label: 'Pan (H)',
     hint: 'Drag to move the view. Hold Space from any tool, or drag with the middle button. Scroll wheel zooms.',
   },
-  { id: 'text', label: 'Text', hint: 'Drag across page text to select it; Ctrl+C copies.' },
+  {
+    id: 'text',
+    label: 'Select Text',
+    hint: 'Drag across page text to select it; Ctrl+C copies.',
+  },
   {
     id: 'calibrate',
     label: 'Calibrate (X)',
@@ -69,6 +73,17 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
     hint: 'Click each corner; click the first corner again, double-click, or press Enter to finish.',
   },
   { id: 'pen', label: 'Pen (P)', hint: 'Press and drag to draw freehand.' },
+  {
+    id: 'textbox',
+    label: 'Text Box (T)',
+    hint: 'Drag a box (or click for a default one), type, then Ctrl+Enter or click away.',
+  },
+  {
+    id: 'callout',
+    label: 'Callout (K)',
+    hint: 'Click what to point at, then drag the box and type.',
+  },
+  { id: 'note', label: 'Note (N)', hint: 'Click to place a sticky note, type, press Enter.' },
 ];
 
 async function openFile(file: File, handle?: FileHandleLike): Promise<void> {
@@ -198,6 +213,9 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     l: 'line',
     g: 'polygon',
     p: 'pen',
+    t: 'textbox',
+    k: 'callout',
+    n: 'note',
   };
   const shifted: Record<string, Tool> = { m: 'polylength', a: 'perimeter', l: 'arrow' };
   const next = event.shiftKey ? shifted[key] : plain[key];

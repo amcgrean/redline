@@ -115,6 +115,8 @@ export interface Markup {
   measure?: MarkupMeasure;
   /** Custom attributes from `/RLAttrs` (tool attributes, count groups). */
   attrs?: Record<string, string | number | boolean>;
+  /** Callout leader `/CL` (tip, knee, box edge) in user space, for FreeText callouts. */
+  callout?: Point[];
   relations: { groupParent?: string; replyTo?: string; layer?: boolean };
   flags: { locked: boolean; hidden: boolean; print: boolean };
   /** The live dictionary. Unknown keys live here and are written back verbatim. */

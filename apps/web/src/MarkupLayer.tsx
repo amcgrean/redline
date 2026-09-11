@@ -22,6 +22,7 @@ import type { PageViewport } from './pdfjs';
 import { actions, useEditor, useEditorStore } from './store';
 import { renderApBitmap, type ApBitmap } from './apBitmap';
 import { CalibrateDialog } from './CalibrateDialog';
+import { TextEditor } from './TextEditor';
 
 interface Box {
   left: number;
@@ -58,6 +59,8 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     setDraftState(points);
   };
   const [hover, setHover] = useState<Point | undefined>();
+  /** Callout: the first click sets the arrow target; the drag then places the box. */
+  const [calloutTarget, setCalloutTarget] = useState<Point | undefined>();
   /** Rubber-band selection in page pixels (layer coordinates). */
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number }>();
   const marqueeRef = useRef<typeof marquee>(undefined);
@@ -80,8 +83,21 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const closesDraft =
     tool === 'area' || tool === 'perimeter' || tool === 'rectarea' || tool === 'polygon';
   /** Press-drag-release tools. */
-  const isDragTool = tool === 'rectangle' || tool === 'ellipse' || tool === 'pen';
+  const isDragTool =
+    tool === 'rectangle' ||
+    tool === 'ellipse' ||
+    tool === 'pen' ||
+    tool === 'textbox' ||
+    (tool === 'callout' && calloutTarget !== undefined);
   const dragDraft = useRef<Point[] | undefined>(undefined);
+  /** Pending text entry: where the box goes, what it is, and any existing markup being edited. */
+  const [editor, setEditor] = useState<
+    | { kind: 'textbox'; rect: PdfRect }
+    | { kind: 'callout'; rect: PdfRect; target: Point }
+    | { kind: 'note'; at: Point }
+    | { kind: 'edit'; id: string; rect: PdfRect; initial: string; singleLine: boolean }
+    | undefined
+  >(undefined);
 
   // Escape cancels a draft; Enter finishes a multi-vertex tool.
   useEffect(() => {
@@ -96,7 +112,11 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  useEffect(() => setDraft([]), [tool]);
+  useEffect(() => {
+    setDraft([]);
+    setCalloutTarget(undefined);
+    setEditor(undefined);
+  }, [tool]);
 
   const pointerPdf = (event: KonvaEventObject<MouseEvent>): Point | undefined => {
     const stage = event.target.getStage();
@@ -160,6 +180,14 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       actions.addCount(pageIndex, p);
       return;
     }
+    if (tool === 'callout' && calloutTarget === undefined) {
+      setCalloutTarget(p);
+      return;
+    }
+    if (tool === 'note') {
+      setEditor({ kind: 'note', at: p });
+      return;
+    }
     if (tool === 'line' || tool === 'arrow') {
       if (draft.length === 0) {
         setDraft([p]);
@@ -204,7 +232,35 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     }
   };
 
-  const onDblClick = () => {
+  const onDblClick = (event: KonvaEventObject<MouseEvent>) => {
+    if (tool === 'select') {
+      const p = pointerPdf(event);
+      if (!p) return;
+      const hit = markups.find(
+        (m) =>
+          (m.rawSubtype === 'FreeText' || m.rawSubtype === 'Text') &&
+          p.x >= m.rect[0] &&
+          p.x <= m.rect[2] &&
+          p.y >= m.rect[1] &&
+          p.y <= m.rect[3],
+      );
+      if (hit) {
+        const rect: PdfRect =
+          hit.rawSubtype === 'Text'
+            ? [hit.rect[0], hit.rect[1] - 40, hit.rect[0] + 200, hit.rect[1]]
+            : hit.geometry.kind === 'rect'
+              ? hit.geometry.rect
+              : hit.rect;
+        setEditor({
+          kind: 'edit',
+          id: hit.id,
+          rect,
+          initial: hit.text?.contents ?? '',
+          singleLine: hit.rawSubtype === 'Text',
+        });
+      }
+      return;
+    }
     if (!isPolyTool) return;
     // Konva fires dblclick for ANY two clicks within its window, even at different
     // positions; only a genuine double-click (second click on top of the first) finishes.
@@ -253,7 +309,25 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       }
       const [sx, sy] = toPx(start);
       const [ex, ey] = toPx(end);
-      if (Math.abs(ex - sx) < 3 || Math.abs(ey - sy) < 3) return;
+      const tiny = Math.abs(ex - sx) < 3 || Math.abs(ey - sy) < 3;
+      if (tool === 'textbox' || tool === 'callout') {
+        // A click (no drag) makes a default 200 pt wide box that grows with its text.
+        const rect: PdfRect = tiny
+          ? [start.x, start.y, start.x + 200, start.y]
+          : [
+              Math.min(start.x, end.x),
+              Math.min(start.y, end.y),
+              Math.max(start.x, end.x),
+              Math.max(start.y, end.y),
+            ];
+        if (tool === 'callout' && calloutTarget) {
+          setEditor({ kind: 'callout', rect, target: calloutTarget });
+        } else {
+          setEditor({ kind: 'textbox', rect });
+        }
+        return;
+      }
+      if (tiny) return;
       const rect: [number, number, number, number] = [
         Math.min(start.x, end.x),
         Math.min(start.y, end.y),
@@ -319,7 +393,10 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
 
   // Rubber-band preview for the tool in progress.
   let draftPoints = hover && draft.length ? [...draft, hover] : draft;
-  if ((tool === 'rectarea' || tool === 'rectangle') && draftPoints.length === 2) {
+  if (
+    (tool === 'rectarea' || tool === 'rectangle' || tool === 'textbox' || tool === 'callout') &&
+    draftPoints.length === 2
+  ) {
     const [a, b] = draftPoints as [Point, Point];
     draftPoints = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }];
   }
@@ -409,8 +486,18 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 stroke={DRAFT_COLOR}
                 strokeWidth={2}
                 dash={[6, 4]}
-                closed={(closesDraft || tool === 'rectangle') && draftPoints.length > 2}
-                fill={closesDraft || tool === 'rectangle' ? 'rgba(211,47,47,0.12)' : undefined}
+                closed={
+                  (closesDraft ||
+                    tool === 'rectangle' ||
+                    tool === 'textbox' ||
+                    tool === 'callout') &&
+                  draftPoints.length > 2
+                }
+                fill={
+                  closesDraft || tool === 'rectangle' || tool === 'textbox' || tool === 'callout'
+                    ? 'rgba(211,47,47,0.12)'
+                    : undefined
+                }
                 listening={false}
               />
             )}
@@ -441,6 +528,18 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
           </Layer>
         </Stage>
       </div>
+      {editor && (
+        <TextEditorOverlay
+          editor={editor}
+          toPx={toPx}
+          zoom={viewport.scale}
+          onDone={() => {
+            setEditor(undefined);
+            setCalloutTarget(undefined);
+          }}
+          pageIndex={pageIndex}
+        />
+      )}
       {calibrating && (
         <CalibrateDialog
           pointsDistance={Math.hypot(
@@ -580,8 +679,18 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
         />
       );
     } else if (markup.subtype === 'FreeText') {
+      const leader = markup.callout;
       body = (
         <>
+          {leader && leader.length >= 2 && (
+            <Line
+              points={leader.flatMap(toPx)}
+              stroke={stroke}
+              strokeWidth={Math.max(1, strokeWidth)}
+              lineJoin="round"
+              listening={false}
+            />
+          )}
           <Rect
             x={box.left}
             y={box.top}
@@ -651,6 +760,53 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
       )}
       {selected && draggable && <Handles markup={markup} toPx={toPx} toPdf={toPdf} zoom={zoom} />}
     </Group>
+  );
+}
+
+/** Positions the inline text editor over a page rect and commits to the right action. */
+function TextEditorOverlay({
+  editor,
+  toPx,
+  zoom,
+  onDone,
+  pageIndex,
+}: {
+  editor:
+    | { kind: 'textbox'; rect: PdfRect }
+    | { kind: 'callout'; rect: PdfRect; target: Point }
+    | { kind: 'note'; at: Point }
+    | { kind: 'edit'; id: string; rect: PdfRect; initial: string; singleLine: boolean };
+  toPx: (p: Point) => [number, number];
+  zoom: number;
+  onDone: () => void;
+  pageIndex: number;
+}) {
+  const rect: PdfRect =
+    editor.kind === 'note'
+      ? [editor.at.x, editor.at.y - 40, editor.at.x + 200, editor.at.y]
+      : editor.rect;
+  const box = rectPx(rect, toPx);
+  const fontSize = Math.max(11, 10 * zoom);
+  const commit = (text: string) => {
+    if (editor.kind === 'textbox') actions.addTextBox(pageIndex, editor.rect, text);
+    else if (editor.kind === 'callout')
+      actions.addCallout(pageIndex, editor.rect, editor.target, text);
+    else if (editor.kind === 'note') actions.addNote(pageIndex, editor.at, text);
+    else actions.setText(editor.id, text);
+    onDone();
+  };
+  return (
+    <TextEditor
+      left={box.left}
+      top={box.top}
+      width={box.width}
+      height={box.height}
+      fontSize={fontSize}
+      initial={editor.kind === 'edit' ? editor.initial : ''}
+      singleLine={editor.kind === 'note' || (editor.kind === 'edit' && editor.singleLine)}
+      onCommit={commit}
+      onCancel={onDone}
+    />
   );
 }
 

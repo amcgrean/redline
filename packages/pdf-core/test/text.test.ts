@@ -9,6 +9,7 @@ import { PDFName } from '@cantoo/pdf-lib';
 import { openDocument } from '../src/document/open.js';
 import { saveIncremental } from '../src/document/save.js';
 import { addCallout, addNote, addTextBox, setMarkupText } from '../src/annots/text.js';
+import { moveMarkup, setMarkupGeometry } from '../src/annots/write.js';
 import { wrapText } from '../src/annots/ap/text.js';
 import { escapeLiteral } from '../src/annots/ap/content.js';
 import { lookupName, lookupText } from '../src/annots/dict.js';
@@ -154,6 +155,35 @@ describe('text markups', () => {
     const back = (await openDocument(bytes)).markups[0]!;
     expect(back.text?.contents).toBe('after — edited');
     expect(back.rawSubtype).toBe('FreeText');
+  });
+});
+
+describe('text edits keep the appearance in step', () => {
+  it('resizing a text box re-wraps; moving a callout carries its leader', async () => {
+    const doc = await openDocument(await blankArchD());
+    const box = addTextBox(doc, 0, [100, 1500, 400, 1560], {
+      subject: 'N',
+      author: AUTHOR,
+      text: 'wrap me please, several words long',
+      now: NOW,
+    });
+    const apBefore = box.raw.get(PDFName.of('AP'))?.toString();
+    setMarkupGeometry(doc, box.id, { kind: 'rect', rect: [100, 1400, 250, 1560] }, LATER);
+    expect(box.raw.get(PDFName.of('AP'))?.toString()).not.toBe(apBefore);
+    expect(box.rect).toEqual([99, 1399, 251, 1561]); // geometry plus 1 pt border pad
+
+    const callout = addCallout(
+      doc,
+      0,
+      [600, 1500, 900, 1560],
+      { x: 400, y: 1400 },
+      { subject: 'C', author: AUTHOR, text: 'here', now: NOW },
+    );
+    expect(callout.callout?.[0]).toEqual({ x: 400, y: 1400 });
+    moveMarkup(doc, callout.id, 50, -50, LATER);
+    expect(callout.callout?.[0]).toEqual({ x: 450, y: 1350 });
+    const cl = callout.raw.lookup(PDFName.of('CL'))?.toString();
+    expect(cl).toMatch(/^\[ 450 1350 /);
   });
 });
 

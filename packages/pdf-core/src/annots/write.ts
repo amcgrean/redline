@@ -26,6 +26,7 @@ import { boundsOf, translatePoints, translateRect } from '../measure/geometry.js
 import { colorArray, lookupText, numArray, pdfDate, pdfText, round } from './dict.js';
 import { borderStyle, lineEndingsArray, writeCommonKeys } from './common.js';
 import { regenerateShapeAppearance } from './shapes.js';
+import { regenerateTextAppearance } from './text.js';
 import { isPlaceholderId, requireMarkup } from '../document/open.js';
 import { annotsArrayForWrite, markChanged } from '../document/save.js';
 import { buildFormXObject, setAppearance } from './ap/form.js';
@@ -699,6 +700,7 @@ export function canRegenerateAppearance(markup: Markup): boolean {
   if (isMeasurementMarkup(markup)) {
     return markup.geometry.kind === 'line' || markup.geometry.kind === 'poly';
   }
+  if (markup.rawSubtype === 'FreeText') return markup.geometry.kind === 'rect';
   return isRedlineShape(markup);
 }
 
@@ -783,7 +785,9 @@ export function updateMarkupProperties(
   }
 
   if (canRegenerateAppearance(markup)) {
-    if (!countGroupOf(markup) && !isMeasurementMarkup(markup)) {
+    if (markup.rawSubtype === 'FreeText') {
+      regenerateTextAppearance(doc, markup);
+    } else if (!countGroupOf(markup) && !isMeasurementMarkup(markup)) {
       regenerateShapeAppearance(doc, markup);
     } else if (countGroupOf(markup)) {
       const rect = markup.rect;
@@ -873,6 +877,8 @@ export function setMarkupGeometry(
   if (canRegenerateAppearance(markup) && !countGroupOf(markup) && isMeasurementMarkup(markup)) {
     // A real edit: recompute the value, caption, /Contents (+ /RC) and the appearance.
     refreshMeasurement(doc, markup, styleFromMarkup(markup), 'create');
+  } else if (markup.rawSubtype === 'FreeText' && regenerateTextAppearance(doc, markup)) {
+    // A text box: re-wrap the text to the new box.
   } else if (!countGroupOf(markup) && regenerateShapeAppearance(doc, markup)) {
     // A shape: redraw at the new geometry (a stretched /AP would distort the stroke).
   } else {
@@ -979,6 +985,7 @@ export function moveMarkup(
       if (n instanceof PDFNumber) values.push(n.asNumber() + (i % 2 === 0 ? dx : dy));
     }
     raw.set(PDFName.of('CL'), numArray(context, values));
+    if (markup.callout) markup.callout = translatePoints(markup.callout, dx, dy);
   }
 
   const isMeasurement =

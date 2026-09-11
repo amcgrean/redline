@@ -38,6 +38,9 @@ export const ToolKindSchema = z.enum([
   'arrow',
   'polygon',
   'pen',
+  'textbox',
+  'callout',
+  'note',
 ]);
 export type ToolKind = z.infer<typeof ToolKindSchema>;
 

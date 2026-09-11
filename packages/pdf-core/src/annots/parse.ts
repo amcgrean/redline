@@ -198,6 +198,9 @@ export function parseAnnotation(ref: PDFRef, dict: PDFDict, pageIndex: number, n
   const intent = lookupName(dict, 'IT');
   if (intent) markup.intent = intent;
 
+  const cl = numberArray(dict, 'CL');
+  if (cl && cl.length >= 4) markup.callout = toPoints(cl);
+
   // Redline's own extension key: JSON attributes (docs/extension-keys.md).
   const attrsJson = lookupText(dict, 'RLAttrs');
   if (attrsJson) {
