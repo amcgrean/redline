@@ -24,19 +24,38 @@ jobs:
       contents: read
       deployments: write
     steps:
+      # Until the Cloudflare secrets exist, do nothing rather than fail every push.
+      - name: Check for Cloudflare secrets
+        id: secrets
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$ACCOUNT" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set — skipping deploy (see docs/deploy.md)"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.secrets.outputs.configured == 'true'
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: pnpm/action-setup@v4
+        if: steps.secrets.outputs.configured == 'true'
       - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.configured == 'true'
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: steps.secrets.outputs.configured == 'true'
       - run: pnpm build
+        if: steps.secrets.outputs.configured == 'true'
 
       # The project is created on first use; later runs just deploy.
       - name: Ensure the Pages project exists
+        if: steps.secrets.outputs.configured == 'true'
         uses: cloudflare/wrangler-action@v3
         continue-on-error: true
         with:
@@ -45,6 +64,7 @@ jobs:
           command: pages project create redline --production-branch=main
 
       - name: Deploy to Cloudflare Pages
+        if: steps.secrets.outputs.configured == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -25,7 +25,5 @@ export default defineConfig({
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-  // pdf.js first render can exceed 5 s when the suite runs in parallel against one dev server.
-  expect: { timeout: 15_000 },
   },
 });
