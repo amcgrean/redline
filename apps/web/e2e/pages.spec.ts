@@ -84,12 +84,23 @@ test('rotate, delete + undo, move, drag, insert, extract', async ({ page }) => {
   await expect.poll(() => thumbHeight(page, 0)).toBe(132);
   await expect(thumbs(page).nth(0)).toHaveAttribute('aria-pressed', 'true');
 
-  // Drag the square page (now first) after the last page.
+  // Drag the square page (now first) after the last page. The HTML5 drag is driven with
+  // dispatched events (a DataTransfer and a clientY in the lower half of the target) so
+  // the test does not depend on how the runner's pointer emulates native drag-and-drop.
   const last = thumbs(page).nth(2);
   const lastBox = (await last.boundingBox())!;
-  await thumbs(page)
-    .nth(0)
-    .dragTo(last, { targetPosition: { x: lastBox.width / 2, y: lastBox.height - 3 } });
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await thumbs(page).nth(0).dispatchEvent('dragstart', { dataTransfer });
+  await last.dispatchEvent('dragover', {
+    dataTransfer,
+    clientX: lastBox.x + lastBox.width / 2,
+    clientY: lastBox.y + lastBox.height - 3,
+  });
+  await last.dispatchEvent('drop', {
+    dataTransfer,
+    clientX: lastBox.x + lastBox.width / 2,
+    clientY: lastBox.y + lastBox.height - 3,
+  });
   await expect(page.locator('.status').last()).toHaveText('Reorder page');
   await expect.poll(() => thumbHeight(page, 2)).toBe(132);
   await expect.poll(() => thumbHeight(page, 0)).toBe(264);
