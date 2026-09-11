@@ -30,3 +30,14 @@ Sharon Drive - Urbandale.pdf` (ADR-0003).
 `/PitchRun`, `/RiseDrop`, `/DepthUnit`, `/Depth`, `/Label`, `/Segments`, `/AlignOnSegment`,
 `/FillOpacity`, `/BM`, `/GroupNesting`, `/Pattern*`, `/LineStyle*`, `/NumCounts`,
 `/CountScale`, `/RC`/`/DS` (rewritten only to mirror an edited `/Contents`).
+
+## Duplicate / paste behaviour (no new keys)
+
+`duplicateMarkup` clones the annotation dictionary under a fresh `/NM`, `/CreationDate`
+and `/M`, sets `/P` to the target page, and drops `/Popup`, `/IRT` and `/RT` (a copy is
+not a reply or a group member). All other keys, including `/BSI*`, `/RC`, `/DS` and
+`/OC`, are copied as-is so a duplicated Revu markup keeps its custom-column data. The
+`/AP` form object is shared between the original and the copy until either is edited.
+
+Lock is bit 7 of `/F` (value 128), the standard Locked flag. Locked markups cannot be
+moved, edited or deleted in the app. Verified in Revu: not yet (see interop checklist).

@@ -19,10 +19,11 @@ import {
   worldUnitsPerPoint,
 } from '@redline/pdf-core';
 import type { PageViewport } from './pdfjs';
-import { actions, useEditor, useEditorStore } from './store';
+import { actions, getSession, useEditor, useEditorStore } from './store';
 import { renderApBitmap, type ApBitmap } from './apBitmap';
 import { CalibrateDialog } from './CalibrateDialog';
 import { TextEditor } from './TextEditor';
+import { ContextMenu, type MenuItem } from './ContextMenu';
 
 interface Box {
   left: number;
@@ -66,6 +67,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   const marqueeRef = useRef<typeof marquee>(undefined);
   const justMarqueed = useRef(false);
   const [calibrating, setCalibrating] = useState<[Point, Point] | undefined>();
+  const [menu, setMenu] = useState<{ x: number; y: number; markupId?: string } | undefined>();
   void version; // re-render on every mutation
 
   const toPx = (p: Point): [number, number] => {
@@ -451,6 +453,24 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
           onMouseDown={onMouseDown}
           onMouseUp={onMouseUp}
           onMouseMove={onMouseMove}
+          onContextMenu={(event) => {
+            event.evt.preventDefault();
+            const p = pointerPdf(event);
+            const hit = p
+              ? [...markups]
+                  .reverse()
+                  .find(
+                    (m) =>
+                      p.x >= m.rect[0] - 4 &&
+                      p.x <= m.rect[2] + 4 &&
+                      p.y >= m.rect[1] - 4 &&
+                      p.y <= m.rect[3] + 4,
+                  )
+              : undefined;
+            const { selectedIds } = useEditorStore.getState();
+            if (hit && !selectedIds.includes(hit.id)) actions.select(hit.id);
+            setMenu({ x: event.evt.clientX, y: event.evt.clientY, markupId: hit?.id });
+          }}
         >
           <Layer x={-visible.left} y={-visible.top}>
             {markups.map((m) => (
@@ -458,7 +478,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 key={m.id}
                 markup={m}
                 selected={selectedIds.includes(m.id)}
-                draggable={tool === 'select'}
+                draggable={tool === 'select' && !m.flags.locked}
                 toPx={toPx}
                 toPdf={toPdf}
                 zoom={viewport.scale}
@@ -539,6 +559,28 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
           </Layer>
         </Stage>
       </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems(menu.markupId, pageIndex, (m) => {
+            const rect: PdfRect =
+              m.rawSubtype === 'Text'
+                ? [m.rect[0], m.rect[1] - 40, m.rect[0] + 200, m.rect[1]]
+                : m.geometry.kind === 'rect'
+                  ? m.geometry.rect
+                  : m.rect;
+            setEditor({
+              kind: 'edit',
+              id: m.id,
+              rect,
+              initial: m.text?.contents ?? '',
+              singleLine: m.rawSubtype === 'Text',
+            });
+          })}
+          onClose={() => setMenu(undefined)}
+        />
+      )}
       {editor && (
         <TextEditorOverlay
           editor={editor}
@@ -780,6 +822,88 @@ function MarkupShape({ markup, selected, draggable, toPx, toPdf, zoom }: ShapePr
       {selected && draggable && <Handles markup={markup} toPx={toPx} toPdf={toPdf} zoom={zoom} />}
     </Group>
   );
+}
+
+/** The right-click menu for a markup (or the page when `markupId` is undefined). */
+function menuItems(
+  markupId: string | undefined,
+  pageIndex: number,
+  editText: (m: Markup) => void,
+): MenuItem[] {
+  const state = useEditorStore.getState();
+  const doc = getSession()?.doc;
+  const markup = markupId ? doc?.markups.find((m) => m.id === markupId) : undefined;
+  if (!markup) {
+    return [
+      {
+        label: 'Paste',
+        shortcut: 'Ctrl+V',
+        disabled: state.clipboard.ids.length === 0,
+        onSelect: () => actions.paste(),
+      },
+      {
+        label: 'Select all on page',
+        shortcut: 'Ctrl+A',
+        onSelect: () => actions.selectAllOnPage(),
+      },
+      { separator: true, label: '' },
+      { label: 'Calibrate scale…', shortcut: 'X', onSelect: () => actions.setTool('calibrate') },
+      { label: 'Measure panel', onSelect: () => actions.setPanel('measure') },
+    ];
+  }
+  const ids = state.selectedIds.includes(markup.id) ? state.selectedIds : [markup.id];
+  const many = ids.length > 1;
+  const locked = markup.flags.locked;
+  const isText = markup.rawSubtype === 'FreeText' || markup.rawSubtype === 'Text';
+  const items: MenuItem[] = [];
+  if (isText && !many) {
+    items.push({
+      label: 'Edit text…',
+      shortcut: 'Double-click',
+      disabled: locked,
+      onSelect: () => editText(markup),
+    });
+  }
+  items.push(
+    {
+      label: 'Properties',
+      shortcut: 'Ctrl+Shift+4',
+      onSelect: () => actions.setPanel('properties'),
+    },
+    {
+      label: 'Change subject…',
+      disabled: locked,
+      onSelect: () => {
+        const next = window.prompt('Subject', markup.text?.subject ?? '');
+        if (next && next.trim())
+          actions.updateProperties({ subject: next.trim() }, ids, 'Change subject');
+      },
+    },
+    {
+      label: 'Add to Tool Chest',
+      disabled: many,
+      onSelect: () => actions.addToolFromMarkup(markup.id),
+    },
+    { separator: true, label: '' },
+    { label: 'Copy', shortcut: 'Ctrl+C', onSelect: () => actions.copy() },
+    {
+      label: many ? `Duplicate ${ids.length}` : 'Duplicate',
+      shortcut: 'Ctrl+D',
+      disabled: locked,
+      onSelect: () => actions.duplicate(),
+    },
+    { label: locked ? 'Unlock' : 'Lock', onSelect: () => actions.setLocked(ids, !locked) },
+    { separator: true, label: '' },
+    {
+      label: many ? `Delete ${ids.length} markups` : 'Delete',
+      shortcut: 'Del',
+      danger: true,
+      disabled: locked,
+      onSelect: () => actions.deleteMarkups(ids),
+    },
+  );
+  void pageIndex;
+  return items;
 }
 
 /** Positions the inline text editor over a page rect and commits to the right action. */

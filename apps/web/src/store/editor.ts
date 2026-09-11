@@ -67,6 +67,8 @@ import {
   addCalloutCommand,
   addNoteCommand,
   setTextCommand,
+  duplicateCommand,
+  lockCommand,
   calibratePagesCommand,
   deleteCommand,
   geometryCommand,
@@ -142,6 +144,10 @@ export interface EditorUiState {
   scrollTo?: { page: number; nonce: number };
   /** The count group in progress while the Count tool is active. */
   countGroup?: string;
+  /** In-app clipboard: markup ids to paste (Ctrl+C / Ctrl+V), with their source page. */
+  clipboard: { ids: string[]; page: number };
+  /** `?` overlay. */
+  showHelp: boolean;
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
   spacePan: boolean;
   /** Bumps on every document mutation so subscribers re-render. */
@@ -176,6 +182,8 @@ export const useEditorStore = create<EditorUiState>()(
     find: { open: false, query: '', hits: [], index: 0 },
     autosave: 'idle',
     spacePan: false,
+    clipboard: { ids: [], page: 0 },
+    showHelp: false,
     currentPage: 0,
     version: 0,
     dirty: false,
@@ -820,6 +828,7 @@ export const actions = {
   move(id: string, dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
     const { doc, history } = requireSession();
+    if (doc.markups.find((m) => m.id === id)?.flags.locked) return;
     history.run(moveCommand(doc, id, dx, dy));
     bump({ status: `Moved ${id}` });
   },
@@ -876,6 +885,74 @@ export const actions = {
     history.run(command);
     bump({ selectedId: command.id, selectedIds: [command.id], status: 'Note' });
     return command.markup;
+  },
+
+  copy(): void {
+    const { selectedIds, currentPage } = useEditorStore.getState();
+    if (selectedIds.length === 0) return;
+    set((s) => {
+      s.clipboard = { ids: [...selectedIds], page: currentPage };
+      s.status = `Copied ${selectedIds.length}`;
+    });
+  },
+
+  /** Paste onto the current page. Same page: offset 12 pt; other page: same position. */
+  paste(): void {
+    const session = getSession();
+    const { clipboard, currentPage } = useEditorStore.getState();
+    if (!session || clipboard.ids.length === 0) return;
+    const ids = clipboard.ids.filter((id) => session.doc.markups.some((m) => m.id === id));
+    if (ids.length === 0) return;
+    const samePage = clipboard.page === currentPage;
+    const command = duplicateCommand(
+      session.doc,
+      ids,
+      currentPage,
+      samePage ? 12 : 0,
+      samePage ? -12 : 0,
+      ids.length === 1 ? 'Paste' : `Paste ${ids.length} markups`,
+    );
+    session.history.run(command);
+    bump({
+      selectedId: command.created[command.created.length - 1],
+      selectedIds: [...command.created],
+      status: command.label,
+    });
+  },
+
+  /** Ctrl+D: duplicate the selection in place, offset 12 pt. */
+  duplicate(): void {
+    const session = getSession();
+    const { selectedIds } = useEditorStore.getState();
+    if (!session || selectedIds.length === 0) return;
+    const command = duplicateCommand(
+      session.doc,
+      selectedIds,
+      undefined,
+      12,
+      -12,
+      selectedIds.length === 1 ? 'Duplicate' : `Duplicate ${selectedIds.length} markups`,
+    );
+    session.history.run(command);
+    bump({
+      selectedId: command.created[command.created.length - 1],
+      selectedIds: [...command.created],
+      status: command.label,
+    });
+  },
+
+  setLocked(ids: string[], locked: boolean): void {
+    const session = getSession();
+    if (!session || ids.length === 0) return;
+    const command = lockCommand(session.doc, ids, locked);
+    session.history.run(command);
+    bump({ status: command.label });
+  },
+
+  toggleHelp(show?: boolean): void {
+    set((s) => {
+      s.showHelp = show ?? !s.showHelp;
+    });
   },
 
   /** Edit the text of a text box, callout or note. */

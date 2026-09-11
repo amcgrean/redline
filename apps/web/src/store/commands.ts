@@ -31,6 +31,8 @@ import {
   addCallout,
   addNote,
   setMarkupText,
+  duplicateMarkup,
+  setMarkupLocked,
   clearPageScale,
   deleteMarkup,
   moveMarkup,
@@ -296,6 +298,64 @@ export function setTextCommand(doc: RedlineDocument, id: string, text: string): 
     },
     undo() {
       if (previous !== undefined) setMarkupText(doc, id, previous, previousModified ?? new Date());
+    },
+  };
+}
+
+/**
+ * Duplicate / paste: clones of `ids` on `pageIndex`, offset by (dx, dy). Redo re-creates
+ * the clones under the same /NMs; undo deletes them.
+ */
+export function duplicateCommand(
+  doc: RedlineDocument,
+  ids: string[],
+  pageIndex: number | undefined,
+  dx: number,
+  dy: number,
+  label: string,
+): Command & { created: string[] } {
+  const nms: (string | undefined)[] = ids.map(() => undefined);
+  const command = {
+    label,
+    created: [] as string[],
+    do() {
+      command.created = [];
+      ids.forEach((id, i) => {
+        if (!doc.markups.some((m) => m.id === id)) return;
+        const nm = nms[i];
+        const copy = duplicateMarkup(doc, id, {
+          ...(pageIndex !== undefined && { pageIndex }),
+          dx,
+          dy,
+          ...(nm && { nm }),
+        });
+        nms[i] = copy.id;
+        command.created.push(copy.id);
+      });
+    },
+    undo() {
+      for (const nm of [...command.created].reverse()) deleteMarkup(doc, nm);
+    },
+  };
+  return command;
+}
+
+export function lockCommand(doc: RedlineDocument, ids: string[], locked: boolean): Command {
+  const previous = new Map<string, boolean>();
+  return {
+    label: locked ? 'Lock' : 'Unlock',
+    do() {
+      for (const id of ids) {
+        const m = doc.markups.find((x) => x.id === id);
+        if (!m) continue;
+        if (!previous.has(id)) previous.set(id, m.flags.locked);
+        setMarkupLocked(doc, id, locked);
+      }
+    },
+    undo() {
+      for (const [id, was] of previous) {
+        if (doc.markups.some((x) => x.id === id)) setMarkupLocked(doc, id, was);
+      }
     },
   };
 }

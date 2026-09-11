@@ -204,6 +204,15 @@ export function PropertiesPanel() {
           </dl>
         </>
       )}
+      <label className="prop-inline">
+        <input
+          type="checkbox"
+          checked={markup.flags.locked}
+          onChange={(e) => actions.setLocked(targets(), e.target.checked)}
+          aria-label="Locked"
+        />
+        Locked
+      </label>
       <button
         type="button"
         onClick={() => actions.addToolFromMarkup(markup.id)}

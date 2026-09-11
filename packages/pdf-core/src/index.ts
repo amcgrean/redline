@@ -14,6 +14,8 @@ export {
   parseMeasureDict,
 } from './measure/viewport.js';
 export { deleteMarkup, restoreMarkup, pageHasNoAnnots } from './annots/delete.js';
+export { duplicateMarkup, setMarkupLocked } from './annots/duplicate.js';
+export type { DuplicateOptions } from './annots/duplicate.js';
 export {
   addShapeMarkup,
   regenerateShapeAppearance,

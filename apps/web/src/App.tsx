@@ -8,6 +8,7 @@ import { Viewer } from './Viewer';
 import { Panel } from './panels/Panel';
 import { Recents } from './Recents';
 import { FindBar } from './FindBar';
+import { ShortcutHelp } from './ShortcutHelp';
 import { Recover } from './Recover';
 import { actions, useEditor, type LayoutMode, type Tool, type ZoomMode } from './store';
 import {
@@ -202,6 +203,24 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     if (hasDoc) actions.selectAllOnPage();
     return;
   }
+  if (ctrl && key === 'c') {
+    if (hasDoc) actions.copy();
+    return;
+  }
+  if (ctrl && key === 'v') {
+    if (hasDoc) actions.paste();
+    return;
+  }
+  if (ctrl && key === 'd') {
+    event.preventDefault();
+    if (hasDoc) actions.duplicate();
+    return;
+  }
+  if (event.key === '?' || (event.shiftKey && event.code === 'Slash')) {
+    event.preventDefault();
+    actions.toggleHelp();
+    return;
+  }
   if (event.key === 'Escape') {
     actions.select(undefined);
     return;
@@ -264,6 +283,7 @@ export function App() {
     layoutMode,
     showThumbnails,
     autosave,
+    showHelp,
   } = state;
 
   useEffect(() => {
@@ -574,6 +594,14 @@ export function App() {
         >
           Save{dirty ? ' *' : ''}
         </button>
+        <button
+          type="button"
+          onClick={() => actions.toggleHelp()}
+          title="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts"
+        >
+          ?
+        </button>
         <span className="spacer" />
         <span className="status">{status}</span>
         {hasDoc && autosave !== 'idle' && (
@@ -620,6 +648,7 @@ export function App() {
         </div>
       )}
       <FindBar />
+      {showHelp && <ShortcutHelp onClose={() => actions.toggleHelp(false)} />}
       <div className="hint">
         {hasDoc
           ? TOOLS.find((t) => t.id === tool)?.hint
