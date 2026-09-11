@@ -11,9 +11,20 @@ export type Scope = Readonly<Record<string, number | undefined>>;
 type Token =
   { kind: 'num'; value: number } | { kind: 'id'; name: string } | { kind: 'op'; value: string };
 
+/**
+ * Measured lengths carry float noise (a 20 ft run reads 20.0000002), which would push
+ * `ceil(length * 12 / 16)` from 15 to 16 studs. ceil/floor first snap values that sit
+ * within a millionth of an integer.
+ */
+const EPS = 1e-6;
+function snapInteger(v: number): number {
+  const nearest = Math.round(v);
+  return Math.abs(v - nearest) <= Math.max(1e-9, Math.abs(v) * EPS) ? nearest : v;
+}
+
 const FUNCTIONS: Record<string, (...args: number[]) => number> = {
-  ceil: Math.ceil,
-  floor: Math.floor,
+  ceil: (v: number) => Math.ceil(snapInteger(v)),
+  floor: (v: number) => Math.floor(snapInteger(v)),
   round: (v: number, places = 0) => {
     const f = 10 ** places;
     return Math.round(v * f) / f;

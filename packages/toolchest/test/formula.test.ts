@@ -15,6 +15,10 @@ describe('evaluateFormula', () => {
     expect(evaluateFormula('ceil(length * 12 / studSpacing) + 1', scope)).toBe(19);
     expect(evaluateFormula('round(length / 7, 2)', scope)).toBe(3.43);
     expect(evaluateFormula('max(min(length, 10), 5) + abs(-1) + sqrt(16)', scope)).toBe(15);
+    // Float noise on a measured 20 ft run must not add a stud.
+    expect(evaluateFormula('ceil(length * 12 / 16) + 1', { length: 20.0000002 })).toBe(16);
+    expect(evaluateFormula('floor(length * 12 / 16)', { length: 19.9999998 })).toBe(15);
+    expect(evaluateFormula('ceil(length * 12 / 16)', { length: 20.01 })).toBe(16);
   });
 
   it('rejects unknown names, functions, and anything that is not arithmetic', () => {
