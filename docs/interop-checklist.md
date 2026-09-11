@@ -40,3 +40,4 @@ Open every file in `fixtures/out/` in **Bluebeam Revu 21**, **Acrobat**, **Chrom
 | C1  | Optimize: file opens everywhere, markups intact, size reduced                             |        |
 | C1a | `compress-0.6-revu-optimized.pdf`: opens in Revu with every markup, custom column and space intact; size shown in the script output |        |
 | C2  | Reduce images: text still legible at 100%, vectors untouched, size reduced ≥ 60% on scans |        |
+| C2a | Live site → Pages panel → Compress… → Reduce images (200 dpi, Balanced) on a scanned set; note before/after from the dialog, open the copy in Revu |        |

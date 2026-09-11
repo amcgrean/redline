@@ -111,6 +111,7 @@ import {
 import type { StampRow } from '../db';
 import { downloadBytes } from '../download';
 import { workerQpdf } from '../compress';
+import { reduceImages } from '../reduceImages';
 import { printDocument } from '../print';
 
 export type Tool =
@@ -202,9 +203,13 @@ export interface EditorUiState {
   pageBusy: boolean;
   /** Compress dialog state. */
   compress?: {
-    phase: 'running' | 'done' | 'error';
+    phase: 'idle' | 'running' | 'done' | 'error';
+    mode: 'optimize' | 'reduce';
+    dpi: number;
+    quality: number;
     before: number;
-    report?: OptimizeReport;
+    progress?: string;
+    report?: OptimizeReport & { images?: number; skipped?: number };
     error?: string;
   };
   /** Space is held: pan from any tool without switching (Appendix B "hold Space"). */
@@ -528,22 +533,74 @@ export const actions = {
 
   // ---- compress ----
 
-  /** Run Optimize on the current bytes (unsaved markups included) and show the result. */
+  /** Open the Compress dialog with the current size and the last-used options. */
   async optimize(): Promise<void> {
     const session = getSession();
     if (!session) return;
     const current = (await saveIncremental(session.doc)).bytes;
+    const previous = useEditorStore.getState().compress;
     set((s) => {
-      s.compress = { phase: 'running', before: current.length };
+      s.compress = {
+        phase: 'idle',
+        mode: previous?.mode ?? 'optimize',
+        dpi: previous?.dpi ?? 200,
+        quality: previous?.quality ?? 0.75,
+        before: current.length,
+      };
+    });
+  },
+
+  setCompressOptions(patch: {
+    mode?: 'optimize' | 'reduce';
+    dpi?: number;
+    quality?: number;
+  }): void {
+    set((s) => {
+      if (!s.compress) return;
+      Object.assign(s.compress, patch);
+      s.compress.phase = 'idle';
+      s.compress.report = undefined;
+      s.compress.error = undefined;
+    });
+  },
+
+  /** Run the chosen mode on the current bytes (unsaved markups included). */
+  async runCompress(): Promise<void> {
+    const session = getSession();
+    const options = useEditorStore.getState().compress;
+    if (!session || !options) return;
+    const current = (await saveIncremental(session.doc)).bytes;
+    set((s) => {
+      if (!s.compress) return;
+      s.compress.phase = 'running';
+      s.compress.before = current.length;
+      s.compress.progress = options.mode === 'reduce' ? 'Finding images…' : 'Optimizing…';
     });
     try {
-      const report = await optimizePdf(workerQpdf, current);
+      const report =
+        options.mode === 'reduce'
+          ? await reduceImages(
+              current,
+              { dpi: options.dpi, quality: options.quality },
+              (done, total) => {
+                set((s) => {
+                  if (s.compress) s.compress.progress = `Re-encoding image ${done} of ${total}…`;
+                });
+              },
+            )
+          : await optimizePdf(workerQpdf, current);
       set((s) => {
-        s.compress = { phase: 'done', before: current.length, report };
+        if (!s.compress) return;
+        s.compress.phase = 'done';
+        s.compress.report = report;
+        s.compress.progress = undefined;
       });
     } catch (error) {
       set((s) => {
-        s.compress = { phase: 'error', before: current.length, error: (error as Error).message };
+        if (!s.compress) return;
+        s.compress.phase = 'error';
+        s.compress.error = (error as Error).message;
+        s.compress.progress = undefined;
       });
     }
   },
@@ -560,11 +617,11 @@ export const actions = {
     if (!session || !report) return;
     downloadBytes(
       report.bytes,
-      `${session.file.name.replace(/\.pdf$/i, '')}.optimized.pdf`,
+      `${session.file.name.replace(/\.pdf$/i, '')}.compressed.pdf`,
       'application/pdf',
     );
     set((s) => {
-      s.status = `Downloaded optimized copy: ${describeSavings(report)}`;
+      s.status = `Downloaded compressed copy: ${describeSavings(report)}`;
       s.compress = undefined;
     });
   },
@@ -580,10 +637,10 @@ export const actions = {
     const before = (await saveIncremental(session.doc)).bytes;
     const [doc, pdfjs] = await loadBoth(report.bytes);
     replaceSessionDocument(session, doc, pdfjs, session.file);
-    session.pageHistory.push({ label: 'Optimize', bytes: before });
+    session.pageHistory.push({ label: 'Compress', bytes: before });
     if (session.pageHistory.length > PAGE_HISTORY_LIMIT) session.pageHistory.shift();
     bump({
-      status: `Optimized: ${describeSavings(report)}`,
+      status: `Compressed: ${describeSavings(report)}`,
       selectedId: undefined,
       selectedIds: [],
       pageSelection: [],

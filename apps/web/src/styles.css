@@ -1062,3 +1062,25 @@ form[aria-label='Profile'] .row .spacer {
 .compress-dialog .status {
   font-size: 14px;
 }
+
+.compress-modes {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+.compress-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+.compress-options p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.compress-options label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}

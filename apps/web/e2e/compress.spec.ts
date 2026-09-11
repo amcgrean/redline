@@ -46,16 +46,17 @@ test('optimize previews savings and replaces the document', async ({ page }) => 
   await page.getByRole('button', { name: 'Compress' }).click();
   const dialog = page.getByRole('dialog', { name: 'Compress' });
   await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Preview size' }).click();
   await expect(dialog.getByTestId('compress-result')).toContainText(/smaller|larger/, {
     timeout: 60_000,
   });
-  await dialog.getByRole('button', { name: 'Use optimized' }).click();
-  await expect(status(page)).toContainText('Optimized:');
+  await dialog.getByRole('button', { name: 'Use compressed' }).click();
+  await expect(status(page)).toContainText('Compressed:');
   await page.keyboard.press('Control+Shift+2');
   await expect(rows(page)).toHaveCount(1);
   await expect(page.locator('.page-indicator')).toContainText('of 1');
   // Undo through the page history brings the pre-optimize bytes back.
   await page.keyboard.press('Control+z');
-  await expect(status(page)).toHaveText('Undo Optimize');
+  await expect(status(page)).toHaveText('Undo Compress');
   await expect(rows(page)).toHaveCount(1);
 });

@@ -152,3 +152,5 @@ export type {
   QpdfModuleOptions,
   EmscriptenFS,
 } from './compress/emscripten.js';
+export { listImages, downsampleTarget, replaceImageWithJpeg } from './compress/images.js';
+export type { ImageInfo } from './compress/images.js';
