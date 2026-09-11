@@ -603,7 +603,7 @@ export function App() {
           onClick={() => actions.toggleProfile(true)}
           title="Profile: author name, default units and style"
           aria-label="Profile"
-          className={profile.author ? '' : 'attention'}
+          className={profile.author ? 'profile' : 'profile attention'}
         >
           {profile.author || 'Set your name…'}
         </button>

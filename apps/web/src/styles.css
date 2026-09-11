@@ -56,6 +56,12 @@ body {
 .toolbar .status {
   color: #555;
   white-space: nowrap;
+  /* Never reflow the toolbar as the text changes: shrink and ellipsize instead. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 .dropzone {
   flex: 1;
@@ -130,6 +136,16 @@ body {
   background: #fff8e1;
   border-bottom: 1px solid #e0c97f;
   color: #5d4a00;
+  /* One line always, so the canvas below never moves when the hint text changes. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar button.profile {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Toolbar additions: separators and the page indicator (Phase 1). */
