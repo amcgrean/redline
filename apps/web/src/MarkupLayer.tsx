@@ -138,7 +138,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     setSnapHit(undefined);
   }, [tool]);
 
-  const rawPointerPdf = (event: KonvaEventObject<MouseEvent>): Point | undefined => {
+  const rawPointerPdf = (event: KonvaEventObject<MouseEvent | PointerEvent>): Point | undefined => {
     const stage = event.target.getStage();
     const pos = stage?.getPointerPosition();
     if (!pos) return undefined;
@@ -202,7 +202,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   /** Pointer in user space, snapped and constrained for drawing tools. */
-  const pointerPdf = (event: KonvaEventObject<MouseEvent>): Point | undefined => {
+  const pointerPdf = (event: KonvaEventObject<MouseEvent | PointerEvent>): Point | undefined => {
     const raw = rawPointerPdf(event);
     return raw ? adjust(raw, event.evt) : raw;
   };
@@ -236,7 +236,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     return Math.hypot(ax - bx, ay - by) < 4 ? points.slice(0, -1) : points;
   };
 
-  const onClick = (event: KonvaEventObject<MouseEvent>) => {
+  const onClick = (event: KonvaEventObject<MouseEvent | PointerEvent>) => {
     const p = pointerPdf(event);
     if (!p) return;
     if (tool === 'select' || tool === 'text') {
@@ -326,7 +326,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     }
   };
 
-  const onDblClick = (event: KonvaEventObject<MouseEvent>) => {
+  const onDblClick = (event: KonvaEventObject<MouseEvent | PointerEvent>) => {
     if (tool === 'select') {
       const p = pointerPdf(event);
       if (!p) return;
@@ -366,12 +366,14 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   /** Page-pixel position of the pointer (layer coordinates). */
-  const pointerPx = (event: KonvaEventObject<MouseEvent>): [number, number] | undefined => {
+  const pointerPx = (
+    event: KonvaEventObject<MouseEvent | PointerEvent>,
+  ): [number, number] | undefined => {
     const pos = event.target.getStage()?.getPointerPosition();
     return pos ? [pos.x + visible.left, pos.y + visible.top] : undefined;
   };
 
-  const onMouseDown = (event: KonvaEventObject<MouseEvent>) => {
+  const onMouseDown = (event: KonvaEventObject<MouseEvent | PointerEvent>) => {
     if (isDragTool && event.evt.button === 0) {
       const p = pointerPdf(event);
       if (p) {
@@ -389,7 +391,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     setMarquee(m);
   };
 
-  const onMouseUp = (event: KonvaEventObject<MouseEvent>) => {
+  const onMouseUp = (event: KonvaEventObject<MouseEvent | PointerEvent>) => {
     const dd = dragDraft.current;
     if (dd) {
       dragDraft.current = undefined;
@@ -455,7 +457,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     justMarqueed.current = true;
   };
 
-  const onMouseMove = (event: KonvaEventObject<MouseEvent>) => {
+  const onMouseMove = (event: KonvaEventObject<MouseEvent | PointerEvent>) => {
     if (dragDraft.current) {
       const p = pointerPdf(event);
       if (!p) return;
@@ -530,11 +532,13 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
         <Stage
           width={Math.max(1, visible.width)}
           height={Math.max(1, visible.height)}
-          onClick={onClick}
-          onDblClick={onDblClick}
-          onMouseDown={onMouseDown}
-          onMouseUp={onMouseUp}
-          onMouseMove={onMouseMove}
+          // Pointer events cover mouse, touch and pen alike (Konva synthesises
+          // pointerclick / pointerdblclick for every pointer type).
+          onPointerClick={onClick}
+          onPointerDblClick={onDblClick}
+          onPointerDown={onMouseDown}
+          onPointerUp={onMouseUp}
+          onPointerMove={onMouseMove}
           onContextMenu={(event) => {
             event.evt.preventDefault();
             const p = pointerPdf(event);
@@ -761,7 +765,7 @@ function MarkupShape({
     actions.moveSelected(markup.id, moved.x - origin.x, moved.y - origin.y);
   };
 
-  const onSelect = (event: KonvaEventObject<MouseEvent>) => {
+  const onSelect = (event: KonvaEventObject<MouseEvent | PointerEvent>) => {
     // Drawing tools click through: let the event bubble to the Stage, which draws.
     if (!interactive) return;
     event.cancelBubble = true;

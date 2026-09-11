@@ -79,6 +79,8 @@ body {
   background: #fbe9e7;
 }
 .viewer {
+  /* Touch is handled by the app: two fingers pinch/pan, one finger draws or selects. */
+  touch-action: none;
   flex: 1;
   overflow: auto;
   position: relative;

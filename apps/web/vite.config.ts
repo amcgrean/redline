@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -52,7 +53,42 @@ function fixtureServer(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), fixtureServer()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    fixtureServer(),
+    // Installable and works offline on a job site: the shell, pdf.js and qpdf are
+    // precached; documents never leave the browser anyway.
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
+      manifest: {
+        name: 'Redline',
+        short_name: 'Redline',
+        description: 'Browser-native PDF markup and measurement for construction plans',
+        theme_color: '#d32f2f',
+        background_color: '#f7f7f7',
+        display: 'standalone',
+        start_url: '/',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          {
+            src: 'icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,wasm,png,svg,woff2,mjs}'],
+        // pdf.js and the qpdf WASM are each over the 2 MB default.
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        navigateFallback: 'index.html',
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
   server: { port: 5173 },
   optimizeDeps: {
     // pdf.js ships ESM with top-level await; keep it out of the pre-bundler.

@@ -210,6 +210,64 @@ export function Viewer({ pdfjs }: { pdfjs: PdfjsDocument }) {
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoom]);
 
+  // Touch: two fingers pinch to zoom around their midpoint and pan; one finger is left
+  // to the tools (draw, select) exactly like the mouse. `touch-action: none` on the
+  // viewer keeps the browser from scrolling or zooming the page itself.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let pinch: { distance: number; midX: number; midY: number; zoom: number } | undefined;
+    const pair = (touches: TouchList) => {
+      const a = touches[0]!;
+      const b = touches[1]!;
+      return {
+        distance: Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY),
+        midX: (a.clientX + b.clientX) / 2,
+        midY: (a.clientY + b.clientY) / 2,
+      };
+    };
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      event.preventDefault();
+      pinch = { ...pair(event.touches), zoom };
+    };
+    const onMove = (event: TouchEvent) => {
+      if (!pinch || event.touches.length !== 2) return;
+      event.preventDefault();
+      const now = pair(event.touches);
+      const factor = now.distance / Math.max(1, pinch.distance);
+      const next = Math.max(0.05, Math.min(16, pinch.zoom * factor));
+      const rect = el.getBoundingClientRect();
+      const cx = pinch.midX - rect.left + el.scrollLeft;
+      const cy = pinch.midY - rect.top + el.scrollTop;
+      const ratio = next / zoom;
+      if (Math.abs(ratio - 1) > 0.01) {
+        actions.setZoom(next);
+        requestAnimationFrame(() => {
+          el.scrollLeft = cx * ratio - (now.midX - rect.left);
+          el.scrollTop = cy * ratio - (now.midY - rect.top);
+        });
+      } else {
+        el.scrollLeft -= now.midX - pinch.midX;
+        el.scrollTop -= now.midY - pinch.midY;
+        pinch = { ...pinch, midX: now.midX, midY: now.midY };
+      }
+    };
+    const onEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) pinch = undefined;
+    };
+    el.addEventListener('touchstart', onStart, { passive: false });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [zoom]);
+
   // Drag-to-pan: the Pan tool, Space held, or the middle button from any tool.
   const drag = useRef<
     { pointerId: number; x: number; y: number; left: number; top: number } | undefined
