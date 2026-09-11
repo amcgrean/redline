@@ -23,7 +23,7 @@ import { formatArea, formatLength } from '../measure/format.js';
 import { buildMeasureDict } from '../measure/measureDict.js';
 import { computeMeasurement } from '../measure/compute.js';
 import { boundsOf, translatePoints, translateRect } from '../measure/geometry.js';
-import { colorArray, lookupText, numArray, pdfDate, round } from './dict.js';
+import { colorArray, lookupText, numArray, pdfDate, pdfText, round } from './dict.js';
 import { borderStyle, lineEndingsArray, writeCommonKeys } from './common.js';
 import { regenerateShapeAppearance } from './shapes.js';
 import { isPlaceholderId, requireMarkup } from '../document/open.js';
@@ -662,13 +662,13 @@ function refreshMeasurement(
 
   markup.rect = attachAppearance(context, markup.raw, appearance, alphaFor(style));
   if (pageScale && mode === 'create') {
-    markup.raw.set(PDFName.of('Contents'), PDFString.of(caption));
+    markup.raw.set(PDFName.of('Contents'), pdfText(caption));
     if (markup.text) markup.text.contents = caption;
     // Keep Bluebeam's rich text in step with /Contents (PLAN §3.6).
     const rc = lookupText(markup.raw, 'RC');
     if (rc !== undefined) {
       const synced = rc.replace(/>([^<]*)<\/body>/, () => `>${escapeXml(caption)}</body>`);
-      markup.raw.set(PDFName.of('RC'), PDFString.of(synced));
+      markup.raw.set(PDFName.of('RC'), pdfText(synced));
       if (markup.text) markup.text.richText = synced;
     }
   }
@@ -754,7 +754,7 @@ export function updateMarkupProperties(
   ensureNM(doc, markup);
 
   if (patch.subject !== undefined) {
-    raw.set(PDFName.of('Subj'), PDFString.of(patch.subject));
+    raw.set(PDFName.of('Subj'), pdfText(patch.subject));
     markup.text = { contents: '', author: '', ...markup.text, subject: patch.subject };
   }
   if (patch.stroke) {

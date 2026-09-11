@@ -1,0 +1,58 @@
+<<
+  /AP <<
+    /N stream <<
+      /BBox [ 99 1499 401 1561 ]
+      /Filter /FlateDecode
+      /FormType 1
+      /Matrix [ 1 0 0 1 0 0 ]
+      /Resources <<
+        /Font <<
+          /Helv <<
+            /BaseFont /Helvetica
+            /Encoding /WinAnsiEncoding
+            /Subtype /Type1
+            /Type /Font
+          >>
+        >>
+        /ProcSet [ /PDF /Text ]
+      >>
+      /Subtype /Form
+      /Type /XObject
+    >>
+      | q
+      | 0.83 0.18 0.18 RG
+      | 1 w
+      | 100.5 1500.5 299 59 re
+      | S
+      | 100 1500 300 60 re
+      | W n
+      | 0 0 0 rg
+      | BT
+      | /Helv 10 Tf
+      | 103 1549.08 Td
+      | (Verify plate height on site) Tj
+      | ET
+      | Q
+  >>
+  /BS <<
+    /S /S
+    /Type /Border
+    /W 1
+  >>
+  /C [ 0.83 0.18 0.18 ]
+  /CA 1
+  /Contents (Verify plate height on site)
+  /CreationDate (D:20260908101500-05'00')
+  /DA (0 0 0 rg /Helv 10 Tf)
+  /DS (font: Helvetica 10pt; text-align:left; color:#000000)
+  /F 4
+  /M (D:20260908101500-05'00')
+  /NM (TEXTBOXABCDEFGHI)
+  /P ref(3)
+  /Q 0
+  /Rect [ 99 1499 401 1561 ]
+  /Subj (Note)
+  /Subtype /FreeText
+  /T (Aaron McGrane)
+  /Type /Annot
+>>

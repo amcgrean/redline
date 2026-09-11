@@ -161,3 +161,16 @@ export function parsePdfDate(value: string | undefined): Date | undefined {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
+
+/**
+ * A PDF text string for user-entered text. `PDFString.of` writes one byte per character,
+ * which silently corrupts anything outside Latin-1 (an em dash became U+0014 in a test);
+ * such text is written as a UTF-16BE hex string with a byte-order mark, which every
+ * viewer and Revu read back correctly (`lookupText` decodes both forms).
+ */
+export function pdfText(value: string): PDFString | PDFHexString {
+  for (const ch of value) {
+    if (ch.codePointAt(0)! > 0xff) return PDFHexString.fromText(value);
+  }
+  return PDFString.of(value);
+}

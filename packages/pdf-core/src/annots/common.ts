@@ -6,7 +6,7 @@
 import type { PDFDict, PDFRef } from '@cantoo/pdf-lib';
 import { PDFArray, PDFName, PDFNumber, PDFString, type PDFContext } from '@cantoo/pdf-lib';
 import type { LineEnding, RGB } from '../types.js';
-import { colorArray, numArray, pdfDate, round } from './dict.js';
+import { colorArray, numArray, pdfDate, pdfText, round } from './dict.js';
 
 /** The style keys `writeCommonKeys` needs; measurement and shape styles both satisfy it. */
 export interface CommonStyle {
@@ -56,8 +56,8 @@ export function writeCommonKeys(
   annot.set(PDFName.of('Type'), PDFName.of('Annot'));
   annot.set(PDFName.of('P'), pageRef);
   annot.set(PDFName.of('NM'), PDFString.of(nm));
-  annot.set(PDFName.of('T'), PDFString.of(options.author));
-  annot.set(PDFName.of('Subj'), PDFString.of(options.subject));
+  annot.set(PDFName.of('T'), pdfText(options.author));
+  annot.set(PDFName.of('Subj'), pdfText(options.subject));
   annot.set(PDFName.of('CreationDate'), stamp);
   annot.set(PDFName.of('M'), stamp);
   // Print flag only. Hidden, NoView and Locked are all clear.

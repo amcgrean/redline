@@ -23,6 +23,19 @@ export {
 } from './annots/shapes.js';
 export type { ShapeKind, ShapeStyle, ShapeOptions, ShapeGeometry } from './annots/shapes.js';
 export {
+  addTextBox,
+  addCallout,
+  addNote,
+  setMarkupText,
+  calloutLeader,
+  regenerateTextAppearance,
+  textStyleOf,
+  DEFAULT_TEXT_STYLE,
+} from './annots/text.js';
+export type { TextStyle, TextOptions, NoteOptions } from './annots/text.js';
+export { wrapText, textBoxHeight, LINE_HEIGHT } from './annots/ap/text.js';
+export type { TextAlign } from './annots/ap/text.js';
+export {
   buildRectAppearance,
   buildEllipseAppearance,
   buildInkAppearance,

@@ -25,18 +25,36 @@ export function helveticaCapHeight(size: number): number {
   return size * 0.717;
 }
 
+/** Unicode punctuation that WinAnsiEncoding has at a byte position (0x80-0x9F block). */
+const WINANSI: Record<string, number> = {
+  '\u20AC': 0x80, // euro
+  '\u2026': 0x85, // ellipsis
+  '\u2020': 0x86, // dagger
+  '\u2021': 0x87, // double dagger
+  '\u2030': 0x89, // per mille
+  '\u2018': 0x91, // left single quote
+  '\u2019': 0x92, // right single quote
+  '\u201C': 0x93, // left double quote
+  '\u201D': 0x94, // right double quote
+  '\u2022': 0x95, // bullet
+  '\u2013': 0x96, // en dash
+  '\u2014': 0x97, // em dash
+  '\u2122': 0x99, // trade mark
+};
+
 /**
  * Escape a string for a PDF literal string `(...)`.
  *
- * Characters above U+00FF cannot be represented in WinAnsi and are dropped rather than
- * emitted as mojibake; captions only ever contain digits, `'`, `"`, `-`, `/` and unit
- * labels, so this never bites in practice.
+ * Common punctuation outside Latin-1 (dashes, curly quotes, bullet, ellipsis) maps to its
+ * WinAnsi byte; anything else above U+00FF is dropped rather than emitted as mojibake.
  */
 export function escapeLiteral(text: string): string {
   let out = '';
   for (const char of text) {
-    const code = char.codePointAt(0)!;
+    const mapped = WINANSI[char];
+    const code = mapped ?? char.codePointAt(0)!;
     if (char === '\\' || char === '(' || char === ')') out += `\\${char}`;
+    else if (mapped !== undefined) out += `\\${mapped.toString(8).padStart(3, '0')}`;
     else if (code === 0x0a) out += '\\n';
     else if (code === 0x0d) out += '\\r';
     else if (code === 0x09) out += '\\t';
