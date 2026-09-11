@@ -59,6 +59,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         continue-on-error: true
         with:
+          packageManager: npm
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages project create redline --production-branch=main
@@ -67,6 +68,7 @@ jobs:
         if: steps.secrets.outputs.configured == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
+          packageManager: npm
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/web/dist --project-name=redline --branch=main --commit-dirty=true
