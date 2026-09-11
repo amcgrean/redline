@@ -54,6 +54,10 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
 };
 
 export interface TextOptions {
+  /** `/RLTool`: the tool chest tool that made the markup. */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
   subject: string;
   author: string;
   text: string;
@@ -197,7 +201,7 @@ function writeFreeText(
     annot,
     page.ref,
     nm,
-    { subject: options.subject, author: options.author },
+    { subject: options.subject, author: options.author, tool: options.tool, attrs: options.attrs },
     commonStyle(style),
     now,
   );
@@ -274,6 +278,8 @@ function writeFreeText(
       modified: now,
     },
     relations: {},
+    ...(options.tool && { tool: options.tool }),
+    ...(options.attrs && { attrs: options.attrs }),
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
     ref,
@@ -284,6 +290,10 @@ function writeFreeText(
 }
 
 export interface NoteOptions {
+  /** `/RLTool`: the tool chest tool that made the markup. */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
   subject: string;
   author: string;
   text: string;
@@ -313,7 +323,7 @@ export function addNote(
     annot,
     page.ref,
     nm,
-    { subject: options.subject, author: options.author },
+    { subject: options.subject, author: options.author, tool: options.tool, attrs: options.attrs },
     { stroke: color, opacity: 1, width: 1 },
     now,
   );
@@ -344,6 +354,8 @@ export function addNote(
       modified: now,
     },
     relations: {},
+    ...(options.tool && { tool: options.tool }),
+    ...(options.attrs && { attrs: options.attrs }),
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
     ref,

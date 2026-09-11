@@ -9,6 +9,8 @@
 import type { Markup, RedlineDocument } from '@redline/pdf-core';
 import { countGroupOf } from '@redline/pdf-core';
 import { buildXlsx, type Cell } from './xlsx';
+import type { ToolChest } from '@redline/toolchest';
+import { formulaColumns, formulaValues } from './formulas';
 import { downloadBytes } from './download';
 
 export interface ExportRow {
@@ -22,6 +24,8 @@ export interface ExportRow {
   author: string;
   modified: string;
   id: string;
+  /** Formula values keyed by formula key (only when a chest was given). */
+  formulas: Record<string, number>;
 }
 
 function typeOf(m: Markup): string {
@@ -38,7 +42,7 @@ function typeOf(m: Markup): string {
   }
 }
 
-export function markupRows(doc: RedlineDocument): ExportRow[] {
+export function markupRows(doc: RedlineDocument, chest?: ToolChest): ExportRow[] {
   return doc.markups.map((m) => {
     const c = m.measure?.computed;
     const isCount = !!countGroupOf(m);
@@ -53,6 +57,7 @@ export function markupRows(doc: RedlineDocument): ExportRow[] {
       author: m.text?.author ?? '',
       modified: m.text?.modified ? m.text.modified.toISOString() : '',
       id: m.id,
+      formulas: chest ? formulaValues(m, chest) : {},
     };
   });
 }
@@ -67,8 +72,9 @@ function csvCell(value: string | number): string {
 }
 
 /** CSV with a header, one row per markup, and a `Subtotal` row per subject. */
-export function markupsCsv(doc: RedlineDocument): string {
-  const rows = markupRows(doc);
+export function markupsCsv(doc: RedlineDocument, chest?: ToolChest): string {
+  const rows = markupRows(doc, chest);
+  const columns = formulaColumns(chest);
   const header = [
     'Subject',
     'Page',
@@ -77,6 +83,7 @@ export function markupsCsv(doc: RedlineDocument): string {
     'Length (ft)',
     'Area (sf)',
     'Count',
+    ...columns.map((c) => c.label),
     'Author',
     'Modified',
     'ID',
@@ -101,6 +108,7 @@ export function markupsCsv(doc: RedlineDocument): string {
           r.lengthFt,
           r.areaSf,
           r.count,
+          ...columns.map((c) => (r.formulas[c.key] === undefined ? '' : round(r.formulas[c.key]!))),
           r.author,
           r.modified,
           r.id,
@@ -114,6 +122,9 @@ export function markupsCsv(doc: RedlineDocument): string {
     const length = sum((r) => r.lengthFt);
     const area = sum((r) => r.areaSf);
     const count = sum((r) => r.count);
+    const formulaTotals = columns.map((c) =>
+      group.reduce((acc, r) => acc + (r.formulas[c.key] ?? 0), 0),
+    );
     lines.push(
       [
         subject,
@@ -123,6 +134,7 @@ export function markupsCsv(doc: RedlineDocument): string {
         length ? round(length) : '',
         area ? round(area) : '',
         count ? count : '',
+        ...formulaTotals.map((t) => (t ? round(t) : '')),
         '',
         '',
         '',
@@ -170,10 +182,11 @@ export function subjectTotals(
 }
 
 /** Two sheets: every markup, and a subtotal per subject. */
-export function markupsXlsx(doc: RedlineDocument): Uint8Array {
-  const rows = markupRows(doc);
+export function markupsXlsx(doc: RedlineDocument, chest?: ToolChest): Uint8Array {
+  const rows = markupRows(doc, chest);
+  const columns = formulaColumns(chest);
   const markups: Cell[][] = [
-    HEADER,
+    [...HEADER.slice(0, 7), ...columns.map((c) => c.label), ...HEADER.slice(7)],
     ...rows.map((r) => [
       r.subject,
       r.page,
@@ -182,19 +195,26 @@ export function markupsXlsx(doc: RedlineDocument): Uint8Array {
       r.lengthFt,
       r.areaSf,
       r.count,
+      ...columns.map((c) => (r.formulas[c.key] === undefined ? '' : round(r.formulas[c.key]!))),
       r.author,
       r.modified,
       r.id,
     ]),
   ];
   const totals: Cell[][] = [
-    ['Subject', 'Markups', 'Length (ft)', 'Area (sf)', 'Count'],
+    ['Subject', 'Markups', 'Length (ft)', 'Area (sf)', 'Count', ...columns.map((c) => c.label)],
     ...subjectTotals(rows).map((t) => [
       t.subject,
       t.rows,
       t.lengthFt || '',
       t.areaSf || '',
       t.count || '',
+      ...columns.map((c) => {
+        const total = rows
+          .filter((r) => r.subject === t.subject)
+          .reduce((acc, r) => acc + (r.formulas[c.key] ?? 0), 0);
+        return total ? round(total) : '';
+      }),
     ]),
   ];
   return buildXlsx([
@@ -204,8 +224,12 @@ export function markupsXlsx(doc: RedlineDocument): Uint8Array {
 }
 
 /** Trigger a browser download of the CSV. */
-export function downloadMarkupsCsv(doc: RedlineDocument, fileName: string): void {
-  const csv = markupsCsv(doc);
+export function downloadMarkupsCsv(
+  doc: RedlineDocument,
+  fileName: string,
+  chest?: ToolChest,
+): void {
+  const csv = markupsCsv(doc, chest);
   downloadBytes(
     '\uFEFF' + csv,
     `${fileName.replace(/\.pdf$/i, '')}.markups.csv`,
@@ -214,8 +238,12 @@ export function downloadMarkupsCsv(doc: RedlineDocument, fileName: string): void
 }
 
 /** Trigger a browser download of the XLSX. */
-export function downloadMarkupsXlsx(doc: RedlineDocument, fileName: string): void {
-  const bytes = markupsXlsx(doc);
+export function downloadMarkupsXlsx(
+  doc: RedlineDocument,
+  fileName: string,
+  chest?: ToolChest,
+): void {
+  const bytes = markupsXlsx(doc, chest);
   downloadBytes(
     bytes,
     `${fileName.replace(/\.pdf$/i, '')}.markups.xlsx`,

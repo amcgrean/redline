@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { PDFName, PDFString } from '@cantoo/pdf-lib';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { openDocument } from '../src/document/open.js';
@@ -85,7 +86,7 @@ describe('addCountMarkup', () => {
     expect(markup.rect).toEqual([513, 583, 527, 597]);
   });
 
-  it('is not a count when /RLTool says otherwise', async () => {
+  it('is not a count when /RLAttrs has no count marker (a chest tool id in /RLTool is fine)', async () => {
     const doc = await openDocument(await blankArchD());
     const markup = addCountMarkup(
       doc,
@@ -97,6 +98,8 @@ describe('addCountMarkup', () => {
       markup.raw.context.obj('RLTool') as never,
       markup.raw.context.obj('length') as never,
     );
+    expect(countGroupOf(markup)).toBe('G');
+    markup.raw.set(PDFName.of('RLAttrs'), PDFString.of('{"height":9}'));
     expect(countGroupOf(markup)).toBeUndefined();
   });
 });

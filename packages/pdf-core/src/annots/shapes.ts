@@ -71,6 +71,10 @@ export const DEFAULT_SHAPE_STYLE: ShapeStyle = {
 };
 
 export interface ShapeOptions {
+  /** `/RLTool`: the tool chest tool that made the markup. */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
   subject: string;
   author: string;
   style?: Partial<ShapeStyle>;
@@ -235,7 +239,7 @@ export function addShapeMarkup(
     annot,
     page.ref,
     nm,
-    { subject: options.subject, author: options.author },
+    { subject: options.subject, author: options.author, tool: options.tool, attrs: options.attrs },
     common,
     now,
   );
@@ -330,6 +334,8 @@ export function addShapeMarkup(
       modified: now,
     },
     relations: {},
+    ...(options.tool && { tool: options.tool }),
+    ...(options.attrs && { attrs: options.attrs }),
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
     ref,

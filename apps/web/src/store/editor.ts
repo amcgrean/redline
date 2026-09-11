@@ -1076,7 +1076,7 @@ export const actions = {
       subject: active?.subject ?? 'Count',
       author: state.author,
       group,
-      ...(active && { style: countStyleOf(active) }),
+      ...(active && { style: countStyleOf(active), ...toolKeys(active) }),
     });
     history.run(command);
     const total = doc.markups.filter((m) => countGroupOf(m) === group).length;
@@ -1409,7 +1409,7 @@ export const actions = {
     const options = {
       subject: active?.kind === geometry.kind ? active.subject : label,
       author: state.author,
-      ...(active?.kind === geometry.kind && { style: shapeStyleOf(active) }),
+      ...(active?.kind === geometry.kind && { style: shapeStyleOf(active), ...toolKeys(active) }),
     };
     const command = addShapeCommand(doc, pageIndex, geometry, options, label);
     history.run(command);
@@ -1587,12 +1587,14 @@ export const actions = {
 
   exportCsv(): void {
     const session = getSession();
-    if (session) downloadMarkupsCsv(session.doc, session.file.name);
+    if (session)
+      downloadMarkupsCsv(session.doc, session.file.name, useEditorStore.getState().chest);
   },
 
   exportXlsx(): void {
     const session = getSession();
-    if (session) downloadMarkupsXlsx(session.doc, session.file.name);
+    if (session)
+      downloadMarkupsXlsx(session.doc, session.file.name, useEditorStore.getState().chest);
   },
 
   toggleHelp(show?: boolean): void {
@@ -1727,11 +1729,28 @@ function measurementOptions(fallbackSubject: string): {
   subject: string;
   author: string;
   style?: Partial<MeasurementStyle>;
+  tool?: string;
+  attrs?: Record<string, string | number | boolean>;
 } {
   const state = useEditorStore.getState();
   const active = state.chest?.tools.find((t) => t.id === state.activeToolId);
   if (!active) return { subject: fallbackSubject, author: state.author };
-  return { subject: active.subject, author: state.author, style: measurementStyleOf(active) };
+  return {
+    subject: active.subject,
+    author: state.author,
+    style: measurementStyleOf(active),
+    ...toolKeys(active),
+  };
+}
+
+/** `/RLTool` and the attribute defaults a markup made with `tool` starts with. */
+function toolKeys(tool: ChestTool): {
+  tool: string;
+  attrs?: Record<string, string | number | boolean>;
+} {
+  const attrs: Record<string, string | number | boolean> = {};
+  for (const a of tool.attributes) if (a.default !== undefined) attrs[a.key] = a.default;
+  return { tool: tool.id, ...(Object.keys(attrs).length > 0 && { attrs }) };
 }
 
 function measurementStyleOf(tool: ChestTool): Partial<MeasurementStyle> {
@@ -1774,7 +1793,7 @@ function textOptions(kind: 'textbox' | 'callout', fallbackSubject: string, text:
     opacity: s.opacity,
     ...(s.font?.size && { fontSize: s.font.size }),
   };
-  return { subject: active.subject, author: state.author, text, style };
+  return { subject: active.subject, author: state.author, text, style, ...toolKeys(active) };
 }
 
 const SHAPE_LABEL: Record<ShapeGeometry['kind'], string> = {

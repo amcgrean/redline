@@ -8,6 +8,7 @@ import { useRef, useState } from 'react';
 import type { Tool } from '@redline/toolchest';
 import { actions, useEditor, useEditorStore } from '../store';
 import { StampsSection } from './StampsSection';
+import { ToolAttributesDialog } from './ToolAttributesDialog';
 
 const KIND_LABEL: Record<Tool['kind'], string> = {
   length: 'Length',
@@ -32,6 +33,7 @@ const KIND_LABEL: Record<Tool['kind'], string> = {
 function ToolRow({ tool, index }: { tool: Tool; index: number }) {
   const activeToolId = useEditorStore((s) => s.activeToolId);
   const [editing, setEditing] = useState(false);
+  const [attrsOpen, setAttrsOpen] = useState(false);
   const [name, setName] = useState(tool.name);
   const [subject, setSubject] = useState(tool.subject);
   const active = tool.id === activeToolId;
@@ -113,6 +115,20 @@ function ToolRow({ tool, index }: { tool: Tool; index: number }) {
             })
           }
         />
+        <button
+          type="button"
+          className="linklike"
+          aria-label={`Edit ${tool.name} attributes`}
+          title={
+            tool.attributes.length || tool.formulas.length
+              ? `${tool.attributes.length} attribute(s), ${tool.formulas.length} formula(s)`
+              : 'Attributes and formulas'
+          }
+          onClick={() => setAttrsOpen(true)}
+        >
+          ƒ
+        </button>
+        {attrsOpen && <ToolAttributesDialog tool={tool} onClose={() => setAttrsOpen(false)} />}
         <button
           type="button"
           className="linklike"

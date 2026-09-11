@@ -9,6 +9,7 @@ import type { Markup } from '@redline/pdf-core';
 import { countGroupOf, formatArea, formatLength } from '@redline/pdf-core';
 import { actions, useEditor } from '../store';
 import { downloadMarkupsCsv, downloadMarkupsXlsx } from '../export';
+import { formatFormula, formulaColumns, formulaValues } from '../formulas';
 
 interface Row {
   markup: Markup;
@@ -21,6 +22,7 @@ interface Row {
   author: string;
   modified: string;
   modifiedAt: number;
+  formulas: Record<string, number>;
 }
 
 interface Group {
@@ -29,6 +31,7 @@ interface Group {
   length: number;
   area: number;
   count: number;
+  formulaTotals: Record<string, number>;
 }
 
 type SortKey = 'subject' | 'page' | 'type' | 'value' | 'author' | 'modified';
@@ -88,7 +91,8 @@ function compare(a: Row, b: Row, key: SortKey): number {
 }
 
 export function MarkupsPanel() {
-  const { doc, selectedIds, version, hasDoc, fileName, currentPage } = useEditor();
+  const { doc, selectedIds, version, hasDoc, fileName, currentPage, chest } = useEditor();
+  const columns = useMemo(() => formulaColumns(chest), [chest]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'subject', dir: 1 });
   const [filter, setFilter] = useState('');
   const [thisPage, setThisPage] = useState(false);
@@ -106,8 +110,9 @@ export function MarkupsPanel() {
       author: m.text?.author ?? '',
       modified: m.text?.modified ? m.text.modified.toLocaleDateString() : '',
       modifiedAt: m.text?.modified?.getTime() ?? 0,
+      formulas: formulaValues(m, chest),
     }));
-  }, [doc, version]);
+  }, [doc, version, chest]);
 
   const groups = useMemo((): Group[] => {
     const needle = filter.trim().toLowerCase();
@@ -120,10 +125,13 @@ export function MarkupsPanel() {
     for (const r of shown) {
       let group = bySubject.get(r.subject);
       if (!group) {
-        group = { subject: r.subject, rows: [], length: 0, area: 0, count: 0 };
+        group = { subject: r.subject, rows: [], length: 0, area: 0, count: 0, formulaTotals: {} };
         bySubject.set(r.subject, group);
       }
       group.rows.push(r);
+      for (const [k, v] of Object.entries(r.formulas)) {
+        group.formulaTotals[k] = (group.formulaTotals[k] ?? 0) + v;
+      }
       const c = r.markup.measure?.computed;
       if (countGroupOf(r.markup)) group.count += 1;
       else if (c?.area !== undefined) group.area += c.area;
@@ -167,14 +175,14 @@ export function MarkupsPanel() {
         <span>
           <button
             type="button"
-            onClick={() => downloadMarkupsCsv(doc, fileName ?? 'markups')}
+            onClick={() => downloadMarkupsCsv(doc, fileName ?? 'markups', chest)}
             title="One row per markup plus a subtotal per subject"
           >
             Export CSV
           </button>{' '}
           <button
             type="button"
-            onClick={() => downloadMarkupsXlsx(doc, fileName ?? 'markups')}
+            onClick={() => downloadMarkupsXlsx(doc, fileName ?? 'markups', chest)}
             title="Excel workbook: a Markups sheet and a Subtotals sheet"
           >
             Export XLSX
@@ -220,12 +228,17 @@ export function MarkupsPanel() {
                 </button>
               </th>
             ))}
+            {columns.map((c) => (
+              <th key={c.key} className="formula-col" title="Tool formula">
+                {c.label}
+              </th>
+            ))}
           </tr>
         </thead>
         {groups.length === 0 && (
           <tbody>
             <tr>
-              <td colSpan={5} className="muted">
+              <td colSpan={5 + columns.length} className="muted">
                 No markups match.
               </td>
             </tr>
@@ -240,6 +253,11 @@ export function MarkupsPanel() {
               <td colSpan={2} className="subtotal" data-testid="subtotal">
                 {subtotal(g)}
               </td>
+              {columns.map((c) => (
+                <td key={c.key} className="subtotal formula-col" data-formula={c.key}>
+                  {formatFormula(g.formulaTotals[c.key])}
+                </td>
+              ))}
             </tr>
             {g.rows.map((r) => (
               <tr
@@ -257,6 +275,11 @@ export function MarkupsPanel() {
                 <td>{r.type}</td>
                 <td>{r.value}</td>
                 <td className="muted">{r.author}</td>
+                {columns.map((c) => (
+                  <td key={c.key} className="formula-col" data-formula={c.key}>
+                    {formatFormula(r.formulas[c.key])}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

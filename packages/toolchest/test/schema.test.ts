@@ -106,7 +106,7 @@ describe('tool chest schema', () => {
     expect(parseToolChest(text)).toEqual({ ...chest, $schema: TOOLCHEST_SCHEMA_URL });
   });
 
-  it('default chest: six tools, quick slots 1–6, unique ids', () => {
+  it('default chest: seven tools, quick slots 1–7, unique ids', () => {
     const chest = defaultToolChest();
     expect(chest.tools.map((t) => t.kind)).toEqual([
       'length',
@@ -115,9 +115,13 @@ describe('tool chest schema', () => {
       'perimeter',
       'rectarea',
       'count',
+      'length',
     ]);
-    expect(chest.tools.map((t) => t.hotkey)).toEqual(['1', '2', '3', '4', '5', '6']);
-    expect(new Set(chest.tools.map((t) => t.id)).size).toBe(6);
+    expect(chest.tools.map((t) => t.hotkey)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+    expect(new Set(chest.tools.map((t) => t.id)).size).toBe(7);
+    const wall = chest.tools[6]!;
+    expect(wall.attributes.map((a) => a.key)).toEqual(['height', 'studSpacing']);
+    expect(wall.formulas.map((f) => f.key)).toEqual(['wallArea', 'studs']);
     expect(newId()).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
   });
 });

@@ -20,6 +20,10 @@ export interface CommonStyle {
 export interface CommonOptions {
   subject: string;
   author: string;
+  /** `/RLTool`: id of the tool chest tool that made the markup (docs/extension-keys.md). */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
 }
 
 export function borderStyle(context: PDFContext, width: number, dash?: number[]): PDFDict {
@@ -66,4 +70,8 @@ export function writeCommonKeys(
   if (style.fill) annot.set(PDFName.of('IC'), colorArray(context, style.fill));
   annot.set(PDFName.of('CA'), PDFNumber.of(round(style.opacity)));
   annot.set(PDFName.of('BS'), borderStyle(context, style.width, style.dash));
+  if (options.tool) annot.set(PDFName.of('RLTool'), PDFString.of(options.tool));
+  if (options.attrs && Object.keys(options.attrs).length > 0) {
+    annot.set(PDFName.of('RLAttrs'), PDFString.of(JSON.stringify(options.attrs)));
+  }
 }

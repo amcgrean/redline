@@ -119,6 +119,8 @@ export interface Markup {
   measure?: MarkupMeasure;
   /** Custom attributes from `/RLAttrs` (tool attributes, count groups). */
   attrs?: Record<string, string | number | boolean>;
+  /** `/RLTool`: id of the tool chest tool that made the markup. */
+  tool?: string;
   /** Callout leader `/CL` (tip, knee, box edge) in user space, for FreeText callouts. */
   callout?: Point[];
   relations: { groupParent?: string; replyTo?: string; layer?: boolean };

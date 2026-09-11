@@ -134,6 +134,10 @@ export async function embedStampArtwork(
 }
 
 export interface StampOptions {
+  /** `/RLTool`: the tool chest tool that made the markup. */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
   /** `/Name`, e.g. `RedlineApproved`. Letters, digits and hyphens only. */
   name: string;
   /** `/Contents`: the baked text (what the Markups List shows as the comment). */
@@ -203,7 +207,12 @@ export function addStamp(
     annot,
     page.ref,
     nm,
-    { subject: options.subject ?? 'Stamp', author: options.author },
+    {
+      subject: options.subject ?? 'Stamp',
+      author: options.author,
+      tool: options.tool,
+      attrs: options.attrs,
+    },
     { stroke: { r: 0, g: 0, b: 0 }, opacity, width: 0 },
     now,
   );

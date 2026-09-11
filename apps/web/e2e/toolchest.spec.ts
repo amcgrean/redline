@@ -44,7 +44,7 @@ test('default chest, quick slot, draw with the tool, add a tool from a markup', 
 }) => {
   const o = await openCalibrated(page);
   const chest = panel(page).getByRole('listbox', { name: 'Tool chest' });
-  await expect(chest.getByRole('option')).toHaveCount(6);
+  await expect(chest.getByRole('option')).toHaveCount(7);
   await expect(panel(page).getByRole('tab', { name: 'Tools' })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -71,14 +71,14 @@ test('default chest, quick slot, draw with the tool, add a tool from a markup', 
   await subject.press('Enter');
   await panel(page).getByRole('button', { name: 'Add to Tool Chest' }).click();
   await expect(status(page)).toHaveText('Added "Roofing" to the tool chest');
-  await expect(chest.getByRole('option')).toHaveCount(7);
+  await expect(chest.getByRole('option')).toHaveCount(8);
   await expect(chest.getByRole('option', { name: 'Roofing' })).toHaveAttribute(
     'aria-selected',
     'true',
   );
 
-  // The new tool is slot 7 and draws "Roofing" areas.
-  await page.keyboard.press('7');
+  // The new tool is slot 8 and draws "Roofing" areas.
+  await page.keyboard.press('8');
   await expect(status(page)).toHaveText('Tool: Roofing');
   await page.mouse.click(o.x + 300, o.y + 100);
   await page.mouse.click(o.x + 500, o.y + 100);
@@ -104,7 +104,7 @@ test('default chest, quick slot, draw with the tool, add a tool from a markup', 
   await expect(page.locator('canvas').first()).toBeVisible();
   await expect(
     panel(page).getByRole('listbox', { name: 'Tool chest' }).getByRole('option'),
-  ).toHaveCount(7);
+  ).toHaveCount(8);
 });
 
 test('export and import round-trip a chest', async ({ page }) => {
@@ -124,9 +124,9 @@ test('export and import round-trip a chest', async ({ page }) => {
 
   // Remove a tool, then import the exported file: the tool is back.
   await chest.getByRole('button', { name: 'Remove Perimeter' }).click();
-  await expect(chest.getByRole('option')).toHaveCount(5);
-  await panel(page).getByLabel('Import tool chest').setInputFiles(path!);
-  await expect(status(page)).toHaveText(/Imported tool chest "Default" \(6 tools\)/);
   await expect(chest.getByRole('option')).toHaveCount(6);
+  await panel(page).getByLabel('Import tool chest').setInputFiles(path!);
+  await expect(status(page)).toHaveText(/Imported tool chest "Default" \(7 tools\)/);
+  await expect(chest.getByRole('option')).toHaveCount(7);
   await expect(chest.getByRole('option', { name: 'Count', exact: true })).toContainText('Studs');
 });

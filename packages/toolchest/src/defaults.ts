@@ -76,6 +76,22 @@ export function defaultTools(): ToolInput[] {
       style: { stroke: ORANGE, fill: ORANGE, fillOpacity: 0.6, lineWidth: 1 },
       hotkey: '6',
     },
+    {
+      id: newId(),
+      name: 'Wall LF',
+      subject: 'Wall',
+      kind: 'length',
+      style: { stroke: RED, lineWidth: 3, lineEnds: ['Butt', 'Butt'] },
+      attributes: [
+        { key: 'height', label: 'Wall height', type: 'number', unit: 'ft', default: 9 },
+        { key: 'studSpacing', label: 'Stud spacing', type: 'number', unit: 'in', default: 16 },
+      ],
+      formulas: [
+        { key: 'wallArea', label: 'Wall area (sf)', expr: 'length * height' },
+        { key: 'studs', label: 'Studs', expr: 'ceil(length * 12 / studSpacing) + 1' },
+      ],
+      hotkey: '7',
+    },
   ];
 }
 

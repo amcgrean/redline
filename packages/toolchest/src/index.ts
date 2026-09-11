@@ -33,3 +33,10 @@ export {
   defaultProfile,
 } from './profile.js';
 export type { Profile, ProfileInput } from './profile.js';
+export {
+  evaluateFormula,
+  formulaIdentifiers,
+  validateFormula,
+  BUILTIN_QUANTITIES,
+} from './formula.js';
+export type { Scope } from './formula.js';

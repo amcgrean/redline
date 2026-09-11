@@ -109,6 +109,10 @@ export interface MeasurementStyle {
 }
 
 export interface MeasurementOptions {
+  /** `/RLTool`: the tool chest tool that made the markup. */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
   /** `/Subj` — the Markups List "Subject". */
   subject: string;
   /** `/T` — author. */
@@ -285,6 +289,8 @@ export function addLengthMeasurement(
       computed: {},
     },
     relations: {},
+    ...(options.tool && { tool: options.tool }),
+    ...(options.attrs && { attrs: options.attrs }),
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
     ref,
@@ -366,6 +372,8 @@ export function addAreaMeasurement(
       computed: {},
     },
     relations: {},
+    ...(options.tool && { tool: options.tool }),
+    ...(options.attrs && { attrs: options.attrs }),
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
     ref,
@@ -462,6 +470,8 @@ export function addPolylineMeasurement(
       computed: {},
     },
     relations: {},
+    ...(options.tool && { tool: options.tool }),
+    ...(options.attrs && { attrs: options.attrs }),
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
     ref,
@@ -473,6 +483,10 @@ export function addPolylineMeasurement(
 }
 
 export interface CountOptions {
+  /** `/RLTool`: the tool chest tool that made the markup. */
+  tool?: string;
+  /** `/RLAttrs`: attribute values for formula columns. */
+  attrs?: Record<string, string | number | boolean>;
   /** `/Subj` — what is being counted; the Markups List groups rows by it. */
   subject: string;
   author: string;
@@ -516,14 +530,18 @@ export function addCountMarkup(
     annot,
     page.ref,
     nm,
-    { subject: options.subject, author: options.author },
+    { subject: options.subject, author: options.author, tool: options.tool, attrs: options.attrs },
     { stroke: style.stroke, fill: style.fill, opacity: style.opacity, width: style.width },
     now,
   );
   annot.set(PDFName.of('Subtype'), PDFName.of('Circle'));
   annot.set(PDFName.of('Contents'), PDFString.of(''));
-  annot.set(PDFName.of('RLTool'), PDFString.of('count'));
-  const attrs: CountAttrs = { count: 1, group: options.group };
+  annot.set(PDFName.of('RLTool'), PDFString.of(options.tool ?? 'count'));
+  const attrs: CountAttrs & Record<string, string | number | boolean> = {
+    ...(options.attrs ?? {}),
+    count: 1,
+    group: options.group,
+  };
   annot.set(PDFName.of('RLAttrs'), PDFString.of(JSON.stringify(attrs)));
 
   const appearance = buildCircleAppearance({
@@ -564,7 +582,8 @@ export function addCountMarkup(
       created: now,
       modified: now,
     },
-    attrs: { count: 1, group: options.group },
+    attrs,
+    ...(options.tool && { tool: options.tool }),
     relations: {},
     flags: { locked: false, hidden: false, print: true },
     raw: annot,
@@ -577,9 +596,11 @@ export function addCountMarkup(
 
 /** The count group a markup belongs to, if it is a Redline count symbol. */
 export function countGroupOf(markup: Markup): string | undefined {
-  if (lookupText(markup.raw, 'RLTool') !== 'count') return undefined;
+  // A count symbol is one whose /RLAttrs carry `count: 1` and a group; /RLTool may name
+  // the chest tool that made it (or the literal `count` for tool-less counts).
   try {
     const attrs = JSON.parse(lookupText(markup.raw, 'RLAttrs') ?? '{}') as Partial<CountAttrs>;
+    if (attrs.count !== 1) return undefined;
     return typeof attrs.group === 'string' ? attrs.group : undefined;
   } catch {
     return undefined;
@@ -692,6 +713,10 @@ export interface MarkupPatch {
   opacity?: number;
   /** `/BS /D`; empty array => solid. */
   dash?: number[];
+  /** `/RLAttrs`: merged into the existing attribute values. */
+  attrs?: Record<string, string | number | boolean>;
+  /** `/RLTool`. */
+  tool?: string;
 }
 
 /** True when Redline can rebuild this markup's appearance from its geometry. */
@@ -779,6 +804,14 @@ export function updateMarkupProperties(
     const opacity = Math.max(0, Math.min(1, patch.opacity));
     raw.set(PDFName.of('CA'), PDFNumber.of(round(opacity)));
     markup.style.opacity = opacity;
+  }
+  if (patch.attrs) {
+    markup.attrs = { ...(markup.attrs ?? {}), ...patch.attrs };
+    raw.set(PDFName.of('RLAttrs'), PDFString.of(JSON.stringify(markup.attrs)));
+  }
+  if (patch.tool !== undefined) {
+    raw.set(PDFName.of('RLTool'), PDFString.of(patch.tool));
+    markup.tool = patch.tool;
   }
   if (patch.width !== undefined || patch.dash !== undefined) {
     const width = patch.width ?? markup.style.width;

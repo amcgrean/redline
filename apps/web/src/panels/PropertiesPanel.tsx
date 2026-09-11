@@ -5,10 +5,13 @@
  */
 
 import { useEffect, useState } from 'react';
+import type { Markup } from '@redline/pdf-core';
 import { canRegenerateAppearance, countGroupOf } from '@redline/pdf-core';
 import { actions, useEditor } from '../store';
 
 import { fromHex, toHex } from '../color';
+import { useEditorStore } from '../store';
+import { attributeValues, formatFormula, formulaValues, toolOf } from '../formulas';
 
 export function PropertiesPanel() {
   const { doc, selectedId, selectedIds, version } = useEditor();
@@ -104,6 +107,7 @@ export function PropertiesPanel() {
           Apply to all {groupIds.length} in this count
         </label>
       )}
+      <AttributesSection markup={markup} targets={targets} />
 
       <div className="prop-row">
         <label className="prop-inline">
@@ -233,6 +237,73 @@ export function PropertiesPanel() {
             ? `Delete all ${groupIds.length} in this count`
             : 'Delete markup'}
       </button>
+    </div>
+  );
+}
+
+/** The tool's attributes (editable) and formula results (read-only) for one markup. */
+function AttributesSection({ markup, targets }: { markup: Markup; targets: () => string[] }) {
+  const chest = useEditorStore((s) => s.chest);
+  const tool = toolOf(markup, chest);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  useEffect(() => {
+    setDrafts({});
+  }, [markup.id, markup.attrs]);
+  if (!tool || (tool.attributes.length === 0 && tool.formulas.length === 0)) return null;
+  const values = attributeValues(markup, tool);
+  const results = formulaValues(markup, chest);
+  const commit = (key: string, type: string, raw: string) => {
+    const value =
+      type === 'number'
+        ? raw.trim() === '' || Number.isNaN(Number(raw))
+          ? undefined
+          : Number(raw)
+        : raw;
+    if (value === undefined || value === values[key]) return;
+    actions.updateProperties({ attrs: { [key]: value } }, targets(), 'Change attribute');
+  };
+  return (
+    <div className="prop-attrs">
+      <div className="muted small">Tool: {tool.name}</div>
+      {tool.attributes.map((a) => (
+        <label key={a.key} className="prop-inline">
+          {a.label}
+          {a.unit ? ` (${a.unit})` : ''}
+          {a.type === 'boolean' ? (
+            <input
+              type="checkbox"
+              aria-label={a.label}
+              checked={values[a.key] === true}
+              disabled={markup.flags.locked}
+              onChange={(e) =>
+                actions.updateProperties(
+                  { attrs: { [a.key]: e.target.checked } },
+                  targets(),
+                  'Change attribute',
+                )
+              }
+            />
+          ) : (
+            <input
+              type={a.type === 'number' ? 'number' : 'text'}
+              step="any"
+              aria-label={a.label}
+              value={drafts[a.key] ?? String(values[a.key] ?? '')}
+              disabled={markup.flags.locked}
+              onChange={(e) => setDrafts({ ...drafts, [a.key]: e.target.value })}
+              onBlur={(e) => commit(a.key, a.type, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commit(a.key, a.type, (e.target as HTMLInputElement).value);
+              }}
+            />
+          )}
+        </label>
+      ))}
+      {tool.formulas.map((f) => (
+        <div key={f.key} className="prop-formula" data-formula={f.key}>
+          <span className="muted">{f.label}</span> {formatFormula(results[f.key])}
+        </div>
+      ))}
     </div>
   );
 }

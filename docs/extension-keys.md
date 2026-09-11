@@ -2,10 +2,10 @@
 
 Redline's own keys are limited to two (CLAUDE.md). Both are written by the Count tool (Phase 2 PR 7); everything else Redline writes is a standard ISO 32000 key.
 
-| Key        | Where      | Type          | Meaning                                           |
-| ---------- | ---------- | ------------- | ------------------------------------------------- |
-| `/RLTool`  | annotation | string        | id of the tool chest tool that created the markup |
-| `/RLAttrs` | annotation | string (JSON) | custom attribute values for formula columns       |
+| Key        | Where      | Type          | Meaning                                                                                               |
+| ---------- | ---------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| `/RLTool`  | annotation | string        | id of the tool chest tool that created the markup (`count` for a tool-less count symbol)              |
+| `/RLAttrs` | annotation | string (JSON) | attribute values for formula columns (`{"height":9}`); count symbols also carry `count:1` and `group` |
 
 ## Values in use
 

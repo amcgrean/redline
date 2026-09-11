@@ -60,10 +60,13 @@ test('exports a CSV with rows and subtotals', async ({ page }) => {
   expect(file.suggestedFilename()).toBe('export.markups.csv');
   const text = readFileSync((await file.path())!, 'utf8').replace(/^\uFEFF/, '');
   const lines = text.trim().split(/\r?\n/);
-  expect(lines[0]).toBe('Subject,Page,Type,Value,Length (ft),Area (sf),Count,Author,Modified,ID');
+  // The default chest's Wall LF tool contributes two formula columns after Count.
+  expect(lines[0]).toBe(
+    'Subject,Page,Type,Value,Length (ft),Area (sf),Count,Wall area (sf),Studs,Author,Modified,ID',
+  );
   // Count group: 3 rows + subtotal 3; Length: 2 rows (10 ft, 20 ft) + subtotal 30.
-  expect(lines.filter((l) => l.startsWith('Count,1,Count,1,,,1,'))).toHaveLength(3);
-  expect(lines).toContain('Count,,Subtotal,,,,3,,,');
+  expect(lines.filter((l) => l.startsWith('Count,1,Count,1,,,1,,,'))).toHaveLength(3);
+  expect(lines).toContain('Count,,Subtotal,,,,3,,,,,');
   expect(lines.filter((l) => l.startsWith('Length,1,Length,'))).toHaveLength(2);
-  expect(lines).toContain('Length,,Subtotal,,30,,,,,');
+  expect(lines).toContain('Length,,Subtotal,,30,,,,,,,');
 });
