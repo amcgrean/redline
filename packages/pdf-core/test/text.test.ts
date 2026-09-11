@@ -219,6 +219,7 @@ describe('text appearances render in pdf.js', () => {
     const withAnnots = await renderPng(bytes, { scale: 0.25, annotations: true });
     const without = await renderPng(bytes, { scale: 0.25, annotations: false });
     expect(inkCoverage(withAnnots)).toBeGreaterThan(inkCoverage(without) + 300);
-    expectPngSnapshot(withAnnots, join(SNAPSHOTS, 'ap-text.png'));
+    // Text anti-aliasing differs slightly between Windows and the Linux runner (0.3%).
+    expectPngSnapshot(withAnnots, join(SNAPSHOTS, 'ap-text.png'), 0.01);
   });
 });
