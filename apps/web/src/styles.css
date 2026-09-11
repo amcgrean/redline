@@ -1246,3 +1246,54 @@ table.markups tr.hidden-row td {
   color: #999;
   font-style: italic;
 }
+
+/* Left tool rail (PLAN §3.11). */
+.tool-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 3px;
+  background: #f0f0f0;
+  border-right: 1px solid #ccc;
+  overflow-y: auto;
+  flex: 0 0 auto;
+}
+.tool-rail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tool-rail button {
+  width: 34px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #333;
+  cursor: pointer;
+}
+.tool-rail button:hover:not(:disabled) {
+  background: #e3e3e3;
+  border-color: #ccc;
+}
+.tool-rail button.active {
+  background: #d32f2f;
+  color: #fff;
+  border-color: #b71c1c;
+}
+.tool-rail button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.tool-rail-sep {
+  width: 24px;
+  height: 1px;
+  background: #ccc;
+  margin: 3px 0;
+}
+.app.review .tool-rail {
+  display: none;
+}
