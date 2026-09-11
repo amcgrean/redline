@@ -1239,3 +1239,8 @@ table.markups .formula-col {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+table.markups tr.hidden-row td {
+  color: #999;
+  font-style: italic;
+}

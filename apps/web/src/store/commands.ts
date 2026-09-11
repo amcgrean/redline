@@ -23,6 +23,7 @@ import type {
   StampSource,
   StampOptions,
   StampPlacement,
+  MarkupOrder,
 } from '@redline/pdf-core';
 import {
   addAreaMeasurement,
@@ -38,10 +39,14 @@ import {
   setMarkupLocked,
   addStamp,
   stampPages,
+  setMarkupHidden,
+  reorderMarkup,
+  setMarkupOrder,
+  setMeasurementCaption,
+  restoreMarkup,
   clearPageScale,
   deleteMarkup,
   moveMarkup,
-  restoreMarkup,
   setMarkupGeometry,
   setPageScale,
   updateMarkupProperties,
@@ -400,6 +405,122 @@ export function lockCommand(doc: RedlineDocument, ids: string[], locked: boolean
       }
     },
   };
+}
+
+export function hideCommand(doc: RedlineDocument, ids: string[], hidden: boolean): Command {
+  const previous = new Map<string, boolean>();
+  return {
+    label: hidden ? 'Hide' : 'Show',
+    do() {
+      for (const id of ids) {
+        const m = doc.markups.find((x) => x.id === id);
+        if (!m) continue;
+        if (!previous.has(id)) previous.set(id, m.flags.hidden);
+        setMarkupHidden(doc, id, hidden);
+      }
+    },
+    undo() {
+      for (const [id, was] of previous) {
+        if (doc.markups.some((x) => x.id === id)) setMarkupHidden(doc, id, was);
+      }
+    },
+  };
+}
+
+export function reorderCommand(doc: RedlineDocument, id: string, where: 'front' | 'back'): Command {
+  let previous: MarkupOrder | undefined;
+  return {
+    label: where === 'front' ? 'Bring to front' : 'Send to back',
+    do() {
+      previous = reorderMarkup(doc, id, where);
+    },
+    undo() {
+      if (previous && doc.markups.some((x) => x.id === id)) setMarkupOrder(doc, id, previous);
+    },
+  };
+}
+
+export function captionCommand(doc: RedlineDocument, ids: string[], show: boolean): Command {
+  const previous = new Map<string, boolean>();
+  return {
+    label: show ? 'Show caption' : 'Hide caption',
+    do() {
+      for (const id of ids) {
+        const m = doc.markups.find((x) => x.id === id);
+        if (!m?.measure) continue;
+        if (!previous.has(id)) previous.set(id, m.measure.caption !== false);
+        setMeasurementCaption(doc, id, show);
+      }
+    },
+    undo() {
+      for (const [id, was] of previous) {
+        if (doc.markups.some((x) => x.id === id)) setMeasurementCaption(doc, id, was);
+      }
+    },
+  };
+}
+
+/**
+ * Convert a plain rectangle into an area measurement, or a plain line into a length.
+ * The original goes to the trash (restored on undo); the measurement is a new markup
+ * that keeps the subject, author and colours.
+ */
+export function convertCommand(
+  doc: RedlineDocument,
+  id: string,
+  to: 'area' | 'length',
+): Command & { created?: string } {
+  let nm: string | undefined;
+  const command = {
+    label: to === 'area' ? 'Convert to area' : 'Convert to length',
+    created: undefined as string | undefined,
+    do() {
+      const old = doc.markups.find((x) => x.id === id);
+      if (!old) return;
+      const options = {
+        subject: old.text?.subject || (to === 'area' ? 'Area' : 'Length'),
+        author: old.text?.author ?? '',
+        style: { stroke: old.style.stroke, width: old.style.width, opacity: old.style.opacity },
+        ...(old.tool && { tool: old.tool }),
+        ...(old.attrs && { attrs: old.attrs }),
+        ...(nm && { nm }),
+      };
+      const pageIndex = old.pageIndex;
+      deleteMarkup(doc, id);
+      let made;
+      if (to === 'area') {
+        const [x0, y0, x1, y1] = old.geometry.kind === 'rect' ? old.geometry.rect : old.rect;
+        made = addAreaMeasurement(
+          doc,
+          pageIndex,
+          [
+            { x: x0, y: y0 },
+            { x: x1, y: y0 },
+            { x: x1, y: y1 },
+            { x: x0, y: y1 },
+          ],
+          options,
+        );
+      } else {
+        const [a, b] =
+          old.geometry.kind === 'line'
+            ? old.geometry.points
+            : [
+                { x: old.rect[0], y: old.rect[1] },
+                { x: old.rect[2], y: old.rect[3] },
+              ];
+        made = addLengthMeasurement(doc, pageIndex, a, b, options);
+      }
+      nm = made.id;
+      command.created = made.id;
+    },
+    undo() {
+      if (command.created) deleteMarkup(doc, command.created);
+      restoreMarkup(doc, id);
+      command.created = undefined;
+    },
+  };
+  return command;
 }
 
 /** Deep copy so undo is not affected by later in-place edits. */

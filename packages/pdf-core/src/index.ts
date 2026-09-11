@@ -90,6 +90,7 @@ export {
   DEFAULT_AREA_STYLE,
   DEFAULT_POLYLINE_STYLE,
   DEFAULT_COUNT_STYLE,
+  setMeasurementCaption,
 } from './annots/write.js';
 export type {
   MeasurementOptions,
@@ -164,3 +165,5 @@ export {
 export type { OutlineItem } from './pages/outlines.js';
 export { parseRanges, everyN, splitDocument } from './pages/split.js';
 export type { SplitPart } from './pages/split.js';
+export { setMarkupHidden, reorderMarkup, markupOrder, setMarkupOrder } from './annots/order.js';
+export type { MarkupOrder } from './annots/order.js';

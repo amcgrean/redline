@@ -1017,6 +1017,43 @@ function menuItems(
     },
     { label: locked ? 'Unlock' : 'Lock', onSelect: () => actions.setLocked(ids, !locked) },
     {
+      label: many ? `Hide ${ids.length} markups` : 'Hide',
+      onSelect: () => actions.setHidden(ids, true),
+    },
+    ...(!many
+      ? [
+          { label: 'Bring to front', onSelect: () => actions.reorder(markup.id, 'front') },
+          { label: 'Send to back', onSelect: () => actions.reorder(markup.id, 'back') },
+        ]
+      : []),
+    ...(markup.measure
+      ? [
+          {
+            label: markup.measure.caption === false ? 'Show caption' : 'Hide caption',
+            disabled: locked,
+            onSelect: () => actions.setCaption(ids, markup.measure?.caption === false),
+          },
+        ]
+      : []),
+    ...(!many && !markup.intent && markup.rawSubtype === 'Square'
+      ? [
+          {
+            label: 'Convert to area',
+            disabled: locked,
+            onSelect: () => actions.convert(markup.id, 'area'),
+          },
+        ]
+      : []),
+    ...(!many && !markup.intent && markup.rawSubtype === 'Line'
+      ? [
+          {
+            label: 'Convert to length',
+            disabled: locked,
+            onSelect: () => actions.convert(markup.id, 'length'),
+          },
+        ]
+      : []),
+    {
       label: many ? `Flatten ${ids.length} markups` : 'Flatten',
       disabled: locked,
       onSelect: () => actions.flattenSelected(ids),

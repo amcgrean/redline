@@ -107,6 +107,11 @@ const MENUS = (h: MenuBarHandlers): MenuDef[] => [
         disabled: !hasDoc,
         onSelect: () => actions.rotateView(90),
       },
+      {
+        label: 'Show hidden markups',
+        disabled: !hasDoc,
+        onSelect: () => actions.showAllHidden(),
+      },
       { separator: true, label: '' },
       {
         label: 'Review mode',

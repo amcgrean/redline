@@ -9,6 +9,7 @@ import type { Tool } from '@redline/toolchest';
 import { actions, useEditor, useEditorStore } from '../store';
 import { StampsSection } from './StampsSection';
 import { ToolAttributesDialog } from './ToolAttributesDialog';
+import { ContextMenu, type MenuItem } from '../ContextMenu';
 
 const KIND_LABEL: Record<Tool['kind'], string> = {
   length: 'Length',
@@ -34,6 +35,23 @@ function ToolRow({ tool, index }: { tool: Tool; index: number }) {
   const activeToolId = useEditorStore((s) => s.activeToolId);
   const [editing, setEditing] = useState(false);
   const [attrsOpen, setAttrsOpen] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number }>();
+  const chestSize = useEditorStore((s) => s.chest?.tools.length ?? 0);
+  const menuItems: MenuItem[] = [
+    { label: 'Rename / subject…', onSelect: () => setEditing(true) },
+    { label: 'Attributes & formulas…', onSelect: () => setAttrsOpen(true) },
+    { label: 'Duplicate', onSelect: () => actions.duplicateTool(tool.id) },
+    { separator: true, label: '' },
+    { label: 'Move up', disabled: index === 0, onSelect: () => actions.moveTool(tool.id, -1) },
+    {
+      label: 'Move down',
+      disabled: index >= chestSize - 1,
+      onSelect: () => actions.moveTool(tool.id, 1),
+    },
+    { separator: true, label: '' },
+    { label: 'Export chest…', onSelect: () => actions.exportToolChest() },
+    { label: 'Remove', danger: true, onSelect: () => actions.removeTool(tool.id) },
+  ];
   const [name, setName] = useState(tool.name);
   const [subject, setSubject] = useState(tool.subject);
   const active = tool.id === activeToolId;
@@ -53,6 +71,10 @@ function ToolRow({ tool, index }: { tool: Tool; index: number }) {
       aria-selected={active}
       aria-label={tool.name}
       onClick={() => actions.selectTool(tool.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenu({ x: e.clientX, y: e.clientY });
+      }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         setEditing(true);
@@ -129,6 +151,9 @@ function ToolRow({ tool, index }: { tool: Tool; index: number }) {
           ƒ
         </button>
         {attrsOpen && <ToolAttributesDialog tool={tool} onClose={() => setAttrsOpen(false)} />}
+        {menu && (
+          <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(undefined)} />
+        )}
         <button
           type="button"
           className="linklike"

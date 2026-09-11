@@ -36,11 +36,13 @@ export function ContextMenu({
     };
     window.addEventListener('mousedown', onDown, true);
     window.addEventListener('keydown', onKey, true);
-    window.addEventListener('scroll', onClose, true);
+    // Wheel, not scroll: a programmatic scroll (the viewer settling on a new page) must
+    // not dismiss a menu the user just opened.
+    window.addEventListener('wheel', onClose, true);
     return () => {
       window.removeEventListener('mousedown', onDown, true);
       window.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('wheel', onClose, true);
     };
   }, [onClose]);
 

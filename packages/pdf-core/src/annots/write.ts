@@ -661,13 +661,15 @@ function refreshMeasurement(
   // own `/Contents`) is reused verbatim and `/Contents`/`/RC` are left untouched. Only
   // a freshly created markup gets its caption from the formatter.
   const existing = lookupText(markup.raw, 'Contents');
-  const caption = !showCaption
-    ? ''
-    : mode === 'move' && existing !== undefined
+  // The measured value always goes to /Contents (the Markups List shows it even when the
+  // caption is off, as Revu does); only the drawn caption follows /Cap.
+  const value =
+    mode === 'move' && existing !== undefined
       ? existing
       : pageScale
         ? captionFor(markup, pageScale)
         : '';
+  const caption = showCaption ? value : '';
 
   if (pageScale && markup.measure) markup.measure.computed = computeMeasurement(markup, pageScale);
 
@@ -684,12 +686,12 @@ function refreshMeasurement(
 
   markup.rect = attachAppearance(context, markup.raw, appearance, alphaFor(style));
   if (pageScale && mode === 'create') {
-    markup.raw.set(PDFName.of('Contents'), pdfText(caption));
-    if (markup.text) markup.text.contents = caption;
+    markup.raw.set(PDFName.of('Contents'), pdfText(value));
+    if (markup.text) markup.text.contents = value;
     // Keep Bluebeam's rich text in step with /Contents (PLAN §3.6).
     const rc = lookupText(markup.raw, 'RC');
     if (rc !== undefined) {
-      const synced = rc.replace(/>([^<]*)<\/body>/, () => `>${escapeXml(caption)}</body>`);
+      const synced = rc.replace(/>([^<]*)<\/body>/, () => `>${escapeXml(value)}</body>`);
       markup.raw.set(PDFName.of('RC'), pdfText(synced));
       if (markup.text) markup.text.richText = synced;
     }
@@ -717,6 +719,25 @@ export interface MarkupPatch {
   attrs?: Record<string, string | number | boolean>;
   /** `/RLTool`. */
   tool?: string;
+}
+
+/** Show or hide a measurement's caption (`/Cap`), regenerating its appearance. */
+export function setMeasurementCaption(
+  doc: RedlineDocument,
+  id: string,
+  show: boolean,
+  now: Date = new Date(),
+): Markup {
+  const markup = requireMarkup(doc, id);
+  if (!markup.measure || !isMeasurementMarkup(markup)) return markup;
+  ensureNM(doc, markup);
+  markup.raw.set(PDFName.of('Cap'), doc.pdfDoc.context.obj(show));
+  markup.measure.caption = show;
+  refreshMeasurement(doc, markup, styleFromMarkup(markup), 'create');
+  markup.raw.set(PDFName.of('M'), PDFString.of(pdfDate(now)));
+  if (markup.text) markup.text.modified = now;
+  markChanged(doc, markup.ref);
+  return markup;
 }
 
 /** True when Redline can rebuild this markup's appearance from its geometry. */

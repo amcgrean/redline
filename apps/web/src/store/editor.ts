@@ -96,6 +96,10 @@ import {
   setTextCommand,
   duplicateCommand,
   lockCommand,
+  hideCommand,
+  reorderCommand,
+  captionCommand,
+  convertCommand,
   calibratePagesCommand,
   deleteCommand,
   geometryCommand,
@@ -1514,6 +1518,101 @@ export const actions = {
     const command = lockCommand(session.doc, ids, locked);
     session.history.run(command);
     bump({ status: command.label });
+  },
+
+  setHidden(ids: string[], hidden: boolean): void {
+    const session = getSession();
+    if (!session || ids.length === 0) return;
+    const command = hideCommand(session.doc, ids, hidden);
+    session.history.run(command);
+    bump({
+      status: hidden
+        ? `Hid ${ids.length === 1 ? 'markup' : `${ids.length} markups`}`
+        : command.label,
+      ...(hidden && { selectedId: undefined, selectedIds: [] }),
+    });
+  },
+
+  /** View › Show hidden markups. */
+  showAllHidden(): void {
+    const session = getSession();
+    if (!session) return;
+    const ids = session.doc.markups.filter((m) => m.flags.hidden).map((m) => m.id);
+    if (ids.length === 0) {
+      actions.setStatus('No hidden markups');
+      return;
+    }
+    actions.setHidden(ids, false);
+  },
+
+  reorder(id: string, where: 'front' | 'back'): void {
+    const session = getSession();
+    if (!session) return;
+    const command = reorderCommand(session.doc, id, where);
+    session.history.run(command);
+    bump({ status: command.label });
+  },
+
+  setCaption(ids: string[], show: boolean): void {
+    const session = getSession();
+    if (!session || ids.length === 0) return;
+    const command = captionCommand(session.doc, ids, show);
+    session.history.run(command);
+    bump({ status: command.label });
+  },
+
+  convert(id: string, to: 'area' | 'length'): void {
+    const session = getSession();
+    if (!session) return;
+    const markup = session.doc.markups.find((m) => m.id === id);
+    if (!markup) return;
+    if (!session.doc.pageScales.get(markup.pageIndex)) {
+      actions.setStatus('Calibrate this page first');
+      return;
+    }
+    const command = convertCommand(session.doc, id, to);
+    session.history.run(command);
+    bump({
+      status: command.label,
+      selectedId: command.created,
+      selectedIds: command.created ? [command.created] : [],
+    });
+  },
+
+  /** Tool chest: copy a tool right after itself. */
+  duplicateTool(id: string): void {
+    const { chest } = useEditorStore.getState();
+    const tool = chest?.tools.find((t) => t.id === id);
+    if (!chest || !tool) return;
+    const copy = { ...tool, id: newId(), name: `${tool.name} copy` };
+    const at = chest.tools.indexOf(tool) + 1;
+    const next: ToolChest = {
+      ...chest,
+      updatedAt: new Date().toISOString(),
+      tools: [...chest.tools.slice(0, at), copy, ...chest.tools.slice(at)],
+    };
+    set((s) => {
+      s.chest = next;
+      s.status = `Duplicated "${tool.name}"`;
+    });
+    void persistChest(next);
+  },
+
+  /** Tool chest: move a tool up (-1) or down (+1); quick slots follow the order. */
+  moveTool(id: string, delta: -1 | 1): void {
+    const { chest } = useEditorStore.getState();
+    if (!chest) return;
+    const at = chest.tools.findIndex((t) => t.id === id);
+    const to = at + delta;
+    if (at < 0 || to < 0 || to >= chest.tools.length) return;
+    const tools = [...chest.tools];
+    const [tool] = tools.splice(at, 1);
+    tools.splice(to, 0, tool!);
+    const next: ToolChest = { ...chest, updatedAt: new Date().toISOString(), tools };
+    set((s) => {
+      s.chest = next;
+    });
+    void persistChest(next);
   },
 
   toggleSnap(): void {

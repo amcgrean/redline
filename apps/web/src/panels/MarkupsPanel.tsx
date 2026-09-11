@@ -262,7 +262,7 @@ export function MarkupsPanel() {
             {g.rows.map((r) => (
               <tr
                 key={r.markup.id}
-                className={selectedIds.includes(r.markup.id) ? 'selected' : ''}
+                className={`${selectedIds.includes(r.markup.id) ? 'selected' : ''}${r.markup.flags.hidden ? ' hidden-row' : ''}`}
                 onClick={(e) => {
                   actions.goToPage(r.markup.pageIndex);
                   if (e.shiftKey || e.ctrlKey) actions.toggleSelect(r.markup.id);
@@ -272,7 +272,10 @@ export function MarkupsPanel() {
               >
                 <td className="muted">{r.subject}</td>
                 <td>{r.page}</td>
-                <td>{r.type}</td>
+                <td>
+                  {r.type}
+                  {r.markup.flags.hidden ? ' (hidden)' : ''}
+                </td>
                 <td>{r.value}</td>
                 <td className="muted">{r.author}</td>
                 {columns.map((c) => (

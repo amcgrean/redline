@@ -5,10 +5,12 @@
  * default) because a thumbnail is a preview, not the editing surface.
  */
 
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import React, { useEffect, useRef, useState, type DragEvent } from 'react';
 import { movePages } from '@redline/pdf-core';
 import type { PdfjsDocument } from './pdfjs';
 import { actions, useEditorStore } from './store';
+import { ContextMenu } from './ContextMenu';
+import { pageMenuItems } from './pageMenu';
 
 const THUMB_WIDTH = 132;
 const CACHE_LIMIT = 600;
@@ -71,6 +73,7 @@ interface ThumbProps {
   onDragStart: (event: DragEvent<HTMLElement>) => void;
   onDragOver: (event: DragEvent<HTMLElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
+  onContextMenu: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 function Thumb({
@@ -84,6 +87,7 @@ function Thumb({
   onDragStart,
   onDragOver,
   onDrop,
+  onContextMenu,
 }: ThumbProps) {
   const host = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -134,6 +138,7 @@ function Thumb({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onContextMenu={onContextMenu}
       onClick={(e) => {
         const index = pageNumber - 1;
         if (e.ctrlKey || e.metaKey) actions.togglePageSelection(index);
@@ -158,6 +163,7 @@ export function Thumbnails({ pdfjs }: { pdfjs: PdfjsDocument }) {
   const selection = useEditorStore((s) => s.pageSelection);
   const [aspects, setAspects] = useState<number[]>([]);
   const [drop, setDrop] = useState<{ index: number; side: 'before' | 'after' }>();
+  const [menu, setMenu] = useState<{ x: number; y: number; index: number }>();
   const dragging = useRef<number[]>([]);
 
   // Height/width per page so placeholders have the right shape before rendering.
@@ -225,8 +231,21 @@ export function Thumbnails({ pdfjs }: { pdfjs: PdfjsDocument }) {
           onDragStart={onDragStart(i)}
           onDragOver={onDragOver(i)}
           onDrop={onDrop(i)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (!selection.includes(i)) actions.selectPages([i]);
+            setMenu({ x: e.clientX, y: e.clientY, index: i });
+          }}
         />
       ))}
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={pageMenuItems(menu.index)}
+          onClose={() => setMenu(undefined)}
+        />
+      )}
     </div>
   );
 }
