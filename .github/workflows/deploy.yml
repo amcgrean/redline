@@ -53,22 +53,19 @@ jobs:
       - run: pnpm build
         if: steps.secrets.outputs.configured == 'true'
 
-      # The project is created on first use; later runs just deploy.
+      # The project is created on first use; later runs just deploy. Wrangler runs from
+      # npm's cache (npx --yes) so it never touches the pnpm workspace tree.
       - name: Ensure the Pages project exists
         if: steps.secrets.outputs.configured == 'true'
-        uses: cloudflare/wrangler-action@v3
         continue-on-error: true
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages project create redline --production-branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages project create redline --production-branch=main
 
       - name: Deploy to Cloudflare Pages
         if: steps.secrets.outputs.configured == 'true'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          packageManager: npm
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=redline --branch=main --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages deploy apps/web/dist --project-name=redline --branch=main --commit-dirty=true
