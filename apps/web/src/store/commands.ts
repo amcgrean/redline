@@ -6,6 +6,8 @@
 import type {
   CountOptions,
   Geometry,
+  ShapeGeometry,
+  ShapeOptions,
   Markup,
   MarkupPatch,
   MeasurementOptions,
@@ -21,6 +23,7 @@ import {
   addCountMarkup,
   addLengthMeasurement,
   addPolylineMeasurement,
+  addShapeMarkup,
   clearPageScale,
   deleteMarkup,
   moveMarkup,
@@ -215,6 +218,20 @@ export function updateCommand(
       }
     },
   };
+}
+
+export function addShapeCommand(
+  doc: RedlineDocument,
+  pageIndex: number,
+  geometry: ShapeGeometry,
+  options: ShapeOptions,
+  label: string,
+): AddCommand {
+  return addCommand(
+    label,
+    (nm) => addShapeMarkup(doc, pageIndex, geometry, nm ? { ...options, nm } : options),
+    doc,
+  );
 }
 
 /** Deep copy so undo is not affected by later in-place edits. */

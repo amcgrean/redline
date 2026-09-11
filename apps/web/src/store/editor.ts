@@ -17,6 +17,8 @@ import type {
   PageScale,
   Point,
   Scale,
+  ShapeGeometry,
+  ShapeStyle,
   UnitFormat,
 } from '@redline/pdf-core';
 import { countGroupOf, generateNM, openDocument, saveIncremental } from '@redline/pdf-core';
@@ -58,6 +60,7 @@ import {
   addCountCommand,
   addLengthCommand,
   addPolylineCommand,
+  addShapeCommand,
   calibratePagesCommand,
   deleteCommand,
   geometryCommand,
@@ -78,7 +81,13 @@ export type Tool =
   | 'perimeter'
   | 'area'
   | 'rectarea'
-  | 'count';
+  | 'count'
+  | 'rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'arrow'
+  | 'polygon'
+  | 'pen';
 /** `custom` is a numeric zoom; the fit modes recompute on resize. */
 export type ZoomMode = 'custom' | 'fit-page' | 'fit-width';
 export type LayoutMode = 'continuous' | 'single';
@@ -804,6 +813,23 @@ export const actions = {
     bump({ status: `Moved ${id}` });
   },
 
+  /** A plain shape (rectangle, ellipse, line, arrow, polygon, pen). No scale needed. */
+  addShape(pageIndex: number, geometry: ShapeGeometry): Markup | undefined {
+    const { doc, history } = requireSession();
+    const label = SHAPE_LABEL[geometry.kind];
+    const state = useEditorStore.getState();
+    const active = state.chest?.tools.find((t) => t.id === state.activeToolId);
+    const options = {
+      subject: active?.kind === geometry.kind ? active.subject : label,
+      author: state.author,
+      ...(active?.kind === geometry.kind && { style: shapeStyleOf(active) }),
+    };
+    const command = addShapeCommand(doc, pageIndex, geometry, options, label);
+    history.run(command);
+    bump({ selectedId: command.id, selectedIds: [command.id], status: label });
+    return command.markup;
+  },
+
   /** Vertex edit / resize of one markup. */
   setGeometry(id: string, geometry: Geometry): void {
     const { doc, history } = requireSession();
@@ -936,6 +962,29 @@ function countStyleOf(tool: ChestTool): Partial<CountStyle> {
   };
 }
 
+const SHAPE_LABEL: Record<ShapeGeometry['kind'], string> = {
+  rectangle: 'Rectangle',
+  ellipse: 'Ellipse',
+  line: 'Line',
+  arrow: 'Arrow',
+  polyline: 'Polyline',
+  polygon: 'Polygon',
+  pen: 'Pen',
+};
+
+function shapeStyleOf(tool: ChestTool): Partial<ShapeStyle> {
+  const s = tool.style;
+  return {
+    stroke: fromHex(s.stroke),
+    ...(s.fill && { fill: fromHex(s.fill) }),
+    ...(s.fillOpacity !== undefined && { fillOpacity: s.fillOpacity }),
+    opacity: s.opacity,
+    width: s.lineWidth,
+    ...(s.lineEnds && { lineEnds: s.lineEnds }),
+    ...(s.dash && s.dash.length > 0 && { dash: s.dash }),
+  };
+}
+
 /** Which chest kind a markup corresponds to, if any. */
 function toolKindOf(m: Markup): ChestTool['kind'] | undefined {
   if (isCount(m)) return 'count';
@@ -948,7 +997,20 @@ function toolKindOf(m: Markup): ChestTool['kind'] | undefined {
     const b = p[p.length - 1];
     return a && b && p.length > 2 && a.x === b.x && a.y === b.y ? 'perimeter' : 'polylength';
   }
-  return undefined;
+  switch (m.rawSubtype) {
+    case 'Square':
+      return 'rectangle';
+    case 'Circle':
+      return 'ellipse';
+    case 'Line':
+      return m.intent === 'LineArrow' ? 'arrow' : 'line';
+    case 'Polygon':
+      return 'polygon';
+    case 'Ink':
+      return 'pen';
+    default:
+      return undefined;
+  }
 }
 
 /** Pages a scale applies to. "like" = same size and orientation as `pageIndex`. */

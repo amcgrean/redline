@@ -31,6 +31,13 @@ export const ToolKindSchema = z.enum([
   'perimeter',
   'rectarea',
   'count',
+  // Sales / review shapes (PLAN §3.10)
+  'rectangle',
+  'ellipse',
+  'line',
+  'arrow',
+  'polygon',
+  'pen',
 ]);
 export type ToolKind = z.infer<typeof ToolKindSchema>;
 

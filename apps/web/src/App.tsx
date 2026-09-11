@@ -59,6 +59,16 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
     label: 'Count (C)',
     hint: 'Click each item to count it. Re-select the tool to start a new group.',
   },
+  { id: 'rectangle', label: 'Rect (R)', hint: 'Press and drag a rectangle.' },
+  { id: 'ellipse', label: 'Ellipse (E)', hint: 'Press and drag an ellipse.' },
+  { id: 'line', label: 'Line (L)', hint: 'Click the two ends.' },
+  { id: 'arrow', label: 'Arrow (Shift+L)', hint: 'Click the tail, then the head.' },
+  {
+    id: 'polygon',
+    label: 'Polygon (G)',
+    hint: 'Click each corner; click the first corner again, double-click, or press Enter to finish.',
+  },
+  { id: 'pen', label: 'Pen (P)', hint: 'Press and drag to draw freehand.' },
 ];
 
 async function openFile(file: File, handle?: FileHandleLike): Promise<void> {
@@ -183,8 +193,13 @@ function handleShortcut(event: KeyboardEvent, hasDoc: boolean, dirty: boolean): 
     m: 'length',
     a: 'area',
     c: 'count',
+    r: 'rectangle',
+    e: 'ellipse',
+    l: 'line',
+    g: 'polygon',
+    p: 'pen',
   };
-  const shifted: Record<string, Tool> = { m: 'polylength', a: 'perimeter' };
+  const shifted: Record<string, Tool> = { m: 'polylength', a: 'perimeter', l: 'arrow' };
   const next = event.shiftKey ? shifted[key] : plain[key];
   if (next) actions.setTool(next);
 }

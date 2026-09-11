@@ -15,6 +15,12 @@ const KIND_LABEL: Record<Tool['kind'], string> = {
   perimeter: 'Perimeter',
   rectarea: 'Rect area',
   count: 'Count',
+  rectangle: 'Rectangle',
+  ellipse: 'Ellipse',
+  line: 'Line',
+  arrow: 'Arrow',
+  polygon: 'Polygon',
+  pen: 'Pen',
 };
 
 function ToolRow({ tool, index }: { tool: Tool; index: number }) {

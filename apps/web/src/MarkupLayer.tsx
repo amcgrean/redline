@@ -75,8 +75,13 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
   const pointsPx = (points: readonly Point[]): number[] => points.flatMap(toPx);
 
-  const isPolyTool = tool === 'area' || tool === 'polylength' || tool === 'perimeter';
-  const closesDraft = tool === 'area' || tool === 'perimeter' || tool === 'rectarea';
+  const isPolyTool =
+    tool === 'area' || tool === 'polylength' || tool === 'perimeter' || tool === 'polygon';
+  const closesDraft =
+    tool === 'area' || tool === 'perimeter' || tool === 'rectarea' || tool === 'polygon';
+  /** Press-drag-release tools. */
+  const isDragTool = tool === 'rectangle' || tool === 'ellipse' || tool === 'pen';
+  const dragDraft = useRef<Point[] | undefined>(undefined);
 
   // Escape cancels a draft; Enter finishes a multi-vertex tool.
   useEffect(() => {
@@ -108,6 +113,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
     if (tool === 'area') actions.addArea(pageIndex, points);
     else if (tool === 'perimeter') actions.addPolyline(pageIndex, points, true);
     else if (tool === 'polylength') actions.addPolyline(pageIndex, points, false);
+    else if (tool === 'polygon') actions.addShape(pageIndex, { kind: 'polygon', points });
   };
 
   /** Drop a trailing vertex that repeats the one before it (a double-click's second click). */
@@ -154,6 +160,17 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       actions.addCount(pageIndex, p);
       return;
     }
+    if (tool === 'line' || tool === 'arrow') {
+      if (draft.length === 0) {
+        setDraft([p]);
+        return;
+      }
+      const a = draft[0]!;
+      setDraft([]);
+      if (a.x === p.x && a.y === p.y) return;
+      actions.addShape(pageIndex, { kind: tool, start: a, end: p });
+      return;
+    }
     if (tool === 'rectarea') {
       if (!doc?.pageScales.get(pageIndex)) {
         actions.setStatus('Calibrate this page first');
@@ -170,7 +187,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
       return;
     }
     if (isPolyTool) {
-      if (!doc?.pageScales.get(pageIndex)) {
+      if (tool !== 'polygon' && !doc?.pageScales.get(pageIndex)) {
         actions.setStatus('Calibrate this page first');
         return;
       }
@@ -205,6 +222,14 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   const onMouseDown = (event: KonvaEventObject<MouseEvent>) => {
+    if (isDragTool && event.evt.button === 0) {
+      const p = pointerPdf(event);
+      if (p) {
+        dragDraft.current = [p];
+        setDraft([p]);
+      }
+      return;
+    }
     if (tool !== 'select' || event.evt.button !== 0) return;
     if (event.target !== event.target.getStage()) return;
     const px = pointerPx(event);
@@ -215,6 +240,29 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   const onMouseUp = (event: KonvaEventObject<MouseEvent>) => {
+    const dd = dragDraft.current;
+    if (dd) {
+      dragDraft.current = undefined;
+      setDraft([]);
+      const end = pointerPdf(event) ?? dd[dd.length - 1]!;
+      const start = dd[0]!;
+      if (tool === 'pen') {
+        const path = dd.length > 1 ? dd : [start, end];
+        actions.addShape(pageIndex, { kind: 'pen', paths: [path] });
+        return;
+      }
+      const [sx, sy] = toPx(start);
+      const [ex, ey] = toPx(end);
+      if (Math.abs(ex - sx) < 3 || Math.abs(ey - sy) < 3) return;
+      const rect: [number, number, number, number] = [
+        Math.min(start.x, end.x),
+        Math.min(start.y, end.y),
+        Math.max(start.x, end.x),
+        Math.max(start.y, end.y),
+      ];
+      actions.addShape(pageIndex, { kind: tool === 'ellipse' ? 'ellipse' : 'rectangle', rect });
+      return;
+    }
     const m = marqueeRef.current;
     if (!m) return;
     marqueeRef.current = undefined;
@@ -240,6 +288,17 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
   };
 
   const onMouseMove = (event: KonvaEventObject<MouseEvent>) => {
+    if (dragDraft.current) {
+      const p = pointerPdf(event);
+      if (!p) return;
+      if (tool === 'pen') {
+        dragDraft.current.push(p);
+        setDraft([...dragDraft.current]);
+      } else {
+        setDraft([dragDraft.current[0]!, p]);
+      }
+      return;
+    }
     if (marqueeRef.current) {
       const px = pointerPx(event);
       if (px) {
@@ -260,7 +319,7 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
 
   // Rubber-band preview for the tool in progress.
   let draftPoints = hover && draft.length ? [...draft, hover] : draft;
-  if (tool === 'rectarea' && draftPoints.length === 2) {
+  if ((tool === 'rectarea' || tool === 'rectangle') && draftPoints.length === 2) {
     const [a, b] = draftPoints as [Point, Point];
     draftPoints = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }];
   }
@@ -332,14 +391,26 @@ export function MarkupLayer({ pageIndex, viewport, visible }: Props) {
                 name="marquee"
               />
             )}
-            {draftPoints.length > 0 && (
+            {tool === 'ellipse' && draftPoints.length === 2 && (
+              <Ellipse
+                x={(toPx(draftPoints[0]!)[0] + toPx(draftPoints[1]!)[0]) / 2}
+                y={(toPx(draftPoints[0]!)[1] + toPx(draftPoints[1]!)[1]) / 2}
+                radiusX={Math.abs(toPx(draftPoints[1]!)[0] - toPx(draftPoints[0]!)[0]) / 2}
+                radiusY={Math.abs(toPx(draftPoints[1]!)[1] - toPx(draftPoints[0]!)[1]) / 2}
+                stroke={DRAFT_COLOR}
+                strokeWidth={2}
+                dash={[6, 4]}
+                listening={false}
+              />
+            )}
+            {tool !== 'ellipse' && draftPoints.length > 0 && (
               <Line
                 points={pointsPx(draftPoints)}
                 stroke={DRAFT_COLOR}
                 strokeWidth={2}
                 dash={[6, 4]}
-                closed={closesDraft && draftPoints.length > 2}
-                fill={closesDraft ? 'rgba(211,47,47,0.12)' : undefined}
+                closed={(closesDraft || tool === 'rectangle') && draftPoints.length > 2}
+                fill={closesDraft || tool === 'rectangle' ? 'rgba(211,47,47,0.12)' : undefined}
                 listening={false}
               />
             )}
