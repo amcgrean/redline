@@ -94,18 +94,18 @@ test('hide, z-order, caption, convert', async ({ page }) => {
 
   // A plain line converts to a length; its caption can be hidden and shown.
   await page.keyboard.press('l');
-  await page.mouse.click(o.x, o.y + 400);
-  await page.mouse.click(o.x + 200, o.y + 400);
+  await page.mouse.click(o.x, o.y + 320);
+  await page.mouse.click(o.x + 200, o.y + 320);
   await expect(status(page)).toHaveText('Line');
   await page.keyboard.press('v');
-  await page.mouse.click(o.x + 100, o.y + 400, { button: 'right' });
+  await page.mouse.click(o.x + 100, o.y + 320, { button: 'right' });
   await page.getByRole('menu').getByRole('menuitem', { name: 'Convert to length' }).click();
   await expect(status(page)).toHaveText('Convert to length');
   await expect(list(page).locator('tbody[data-subject="Line"]')).toContainText(`10'-0"`);
-  await page.mouse.click(o.x + 100, o.y + 400, { button: 'right' });
+  await page.mouse.click(o.x + 100, o.y + 320, { button: 'right' });
   await page.getByRole('menu').getByRole('menuitem', { name: 'Hide caption' }).click();
   await expect(status(page)).toHaveText('Hide caption');
-  await page.mouse.click(o.x + 100, o.y + 400, { button: 'right' });
+  await page.mouse.click(o.x + 100, o.y + 320, { button: 'right' });
   await expect(
     page.getByRole('menu').getByRole('menuitem', { name: 'Show caption' }),
   ).toBeVisible();
